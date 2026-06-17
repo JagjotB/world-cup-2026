@@ -1,0 +1,8 @@
+source_name,source_type,url,target_file,notes
+FIFA official squad PDF,squads,https://fdp.fifa.org/assetspublic/ce281/pdf/SquadLists-English.pdf,data/processed/fifa_squad_players_2026.csv,Already parsed by scripts/fetch_fifa_squads.py.
+Kaggle FBref Big 5 player stats,club_player_stats,https://www.kaggle.com/datasets/hubertsidorowicz/football-players-stats-2025-2026,data/processed/club_player_stats_2025_2026.csv,Already parsed by scripts/fetch_kaggle_club_stats.py.
+2026 FIFA World Cup squads tracker,squads_and_coaches,https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_squads,data/manual/projected_lineups_2026.csv,Useful for cross-checking official squad/coaching context and cited federation announcements.
+Guardian World Cup injury reporting,injury_news,https://www.theguardian.com/football/2026/jun/11/mo-toure-injury-scare-world-cup-socceroos-striker,data/manual/player_availability_2026.csv,Example current injury/news source; convert manually into availability rows.
+Times of India team previews,lineups_injuries_tactics,https://timesofindia.indiatimes.com/sports/international-sports/beyond-the-game/fifa-world-cup-2026-argentina-full-squad-list-predicted-starting-xi-injury-status-and-more/articleshow/131561037.cms,data/manual/projected_lineups_2026.csv,Example team preview source for predicted XI/injury/tactical notes; verify against better sources when possible.
+J.League official data site,non_big5_club_stats,https://data.j-league.or.jp/,data/manual/additional_club_player_stats_2025_2026.csv,Use for Japan-based player goals/appearances when available.
+Saudi Pro League stats pages,non_big5_club_stats,https://www.spl.com.sa/,data/manual/additional_club_player_stats_2025_2026.csv,Use for Saudi-based player goals/keeper/discipline data when available.

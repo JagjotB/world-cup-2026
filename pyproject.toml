@@ -1,0 +1,9 @@
+[project]
+name = "world-cup-2026"
+version = "0.1.0"
+description = "FIFA World Cup 2026 match prediction and tournament simulation model"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

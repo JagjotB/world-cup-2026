@@ -1,0 +1,7 @@
+source,league,enabled,notes
+FBref,Big 5 European Leagues Combined,true,Free FBref/soccerdata coverage; slower live pull
+FBref,ENG-Premier League,false,Use instead of combined table if you want per-league pulls
+FBref,ESP-La Liga,false,Use instead of combined table if you want per-league pulls
+FBref,FRA-Ligue 1,false,Use instead of combined table if you want per-league pulls
+FBref,GER-Bundesliga,false,Use instead of combined table if you want per-league pulls
+FBref,ITA-Serie A,false,Use instead of combined table if you want per-league pulls
