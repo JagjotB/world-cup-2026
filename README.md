@@ -12,9 +12,9 @@ The default model is now the enhanced ML path. It uses:
 - projected-XI matchup features such as attack versus opponent defense, creativity versus opponent ball-winning, keeper edge, depth edge, and discipline edge
 - player-projection summary features such as expected minutes, goal threat, assist threat, shot pressure, defensive workload, keeper coverage, bench impact, card risk, and projection balance
 - manual injury/suspension/minute-limit inputs, confirmed/probable lineup inputs, team tactical profiles, and extra non-Big-5 club-player stats when supplied
-- a calibrated histogram gradient-boosting classifier for home/draw/away probabilities
-- an experimental two-stage draw-vs-non-draw then home-vs-away model; training evaluates it and keeps it only if it beats the multiclass model
-- gradient-boosted goal models for sampled scorelines
+- a model-tournament training path that compares logistic regression, calibrated histogram gradient boosting, XGBoost, LightGBM, CatBoost, two-stage draw models, expected-goals-derived outcomes, soft voting, and stacked probability ensembles
+- automatic selection of the best historical-validation result model and the best expected-goals model
+- boosted goal models for sampled scorelines
 - live World Cup result updates applied to ratings/form before future predictions
 - Monte Carlo simulation for group qualification, Round of 32, and the knockout bracket, with sampled scorelines constrained to calibrated match outcomes
 
@@ -42,6 +42,8 @@ python scripts/predict_tournament.py --sims 5000
 ```
 
 Use `python scripts/train_model.py --model-kind baseline` only when you want to compare against the older logistic-regression baseline.
+
+The enhanced trainer writes candidate-level validation metrics to `models/world_cup_match_model.json`, including accuracy, log loss, predicted draw rate, and goal-model MAE. The saved artifact uses the candidate that performs best on the historical validation split; it does not tune on bookmaker odds or current-market prices.
 
 Use `python scripts/predict_group_stage.py --from-date 2026-06-17` to pin the upcoming-match cutoff date. Add `--no-live-results` when you want static pre-tournament ratings/form.
 
