@@ -10,8 +10,9 @@ The default model is now the enhanced ML path. It uses:
 - 2026 squad/player-strength features where available
 - individual player style scores for availability, experience, attacking, creativity, shot volume, crossing, ball-winning, defending, goalkeeping, physical profile, and discipline
 - projected-XI matchup features such as attack versus opponent defense, creativity versus opponent ball-winning, keeper edge, depth edge, and discipline edge
+- player-projection summary features such as expected minutes, goal threat, assist threat, shot pressure, defensive workload, keeper coverage, bench impact, card risk, and projection balance
 - manual injury/suspension/minute-limit inputs, confirmed/probable lineup inputs, team tactical profiles, and extra non-Big-5 club-player stats when supplied
-- a calibrated gradient-boosting classifier for home/draw/away probabilities
+- a calibrated histogram gradient-boosting classifier for home/draw/away probabilities
 - an experimental two-stage draw-vs-non-draw then home-vs-away model; training evaluates it and keeps it only if it beats the multiclass model
 - gradient-boosted goal models for sampled scorelines
 - live World Cup result updates applied to ratings/form before future predictions
@@ -98,7 +99,7 @@ Generated files:
 - `data/processed/player_features_2026.csv`
 - `data/processed/team_player_features_2026.csv`
 
-The FIFA roster covers all 48 teams and 1,248 players. `player_features_2026.csv` now includes individual style scores, availability fields, and manual-lineup fields. `team_player_features_2026.csv` rolls projected starting-XI, unit matchup strengths, availability, and tactical features into the match model. The club-stat table covers Big 5 European league players; players in MLS, Saudi Arabia, Brazil, Argentina, Japan, Qatar, and other leagues need another provider or manual import through `additional_club_player_stats_2025_2026.csv`.
+The FIFA roster covers all 48 teams and 1,248 players. `player_features_2026.csv` now includes individual style scores, availability fields, and manual-lineup fields. `team_player_features_2026.csv` rolls projected starting-XI, player-performance projection summaries, unit matchup strengths, availability, and tactical features into the match model. The club-stat table covers Big 5 European league players; players in MLS, Saudi Arabia, Brazil, Argentina, Japan, Qatar, and other leagues need another provider or manual import through `additional_club_player_stats_2025_2026.csv`.
 
 ## Updating Live Results
 

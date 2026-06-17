@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.linear_model import LogisticRegression, PoissonRegressor
 from sklearn.metrics import accuracy_score, log_loss, mean_absolute_error
 from sklearn.pipeline import Pipeline
@@ -74,12 +74,12 @@ def build_classifier(model_kind: str, random_state: int):
                 ("imputer", SimpleImputer(strategy="median")),
                 (
                     "model",
-                    GradientBoostingClassifier(
-                        n_estimators=280,
+                    HistGradientBoostingClassifier(
+                        max_iter=180,
                         learning_rate=0.035,
-                        max_depth=3,
+                        max_leaf_nodes=31,
                         min_samples_leaf=35,
-                        subsample=0.85,
+                        l2_regularization=0.03,
                         random_state=random_state,
                     ),
                 ),
@@ -125,13 +125,12 @@ def build_goal_model(model_kind: str, random_state: int):
                 ("imputer", SimpleImputer(strategy="median")),
                 (
                     "model",
-                    GradientBoostingRegressor(
-                        loss="squared_error",
-                        n_estimators=230,
+                    HistGradientBoostingRegressor(
+                        max_iter=180,
                         learning_rate=0.04,
-                        max_depth=3,
+                        max_leaf_nodes=31,
                         min_samples_leaf=35,
-                        subsample=0.85,
+                        l2_regularization=0.03,
                         random_state=random_state,
                     ),
                 ),

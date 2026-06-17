@@ -6,6 +6,8 @@ from math import log
 
 import pandas as pd
 
+from .player_projections import PLAYER_PROJECTION_TEAM_FEATURE_COLUMNS
+
 
 @dataclass(frozen=True)
 class EloSettings:
@@ -91,6 +93,7 @@ TEAM_PLAYER_FEATURE_SOURCE_COLUMNS = [
     "starting_fw_attacking_score",
     "starting_fw_shot_volume_score",
     "bench_depth_score",
+    *PLAYER_PROJECTION_TEAM_FEATURE_COLUMNS,
     "tactics_available",
     "formation_back_line",
     "formation_midfield_line",
@@ -136,6 +139,15 @@ PLAYER_MATCHUP_FEATURE_COLUMNS = [
     "transition_edge",
     "formation_attack_density_edge",
     "formation_defensive_density_edge",
+    "home_projection_attack_vs_away_resistance",
+    "away_projection_attack_vs_home_resistance",
+    "projection_attack_matchup_diff",
+    "projection_creation_edge",
+    "projection_shot_pressure_edge",
+    "projection_keeper_edge",
+    "projection_card_risk_edge",
+    "projection_bench_attack_edge",
+    "projection_balance_edge",
 ]
 
 TEAM_PLAYER_FEATURE_COLUMNS = [
@@ -437,7 +449,46 @@ def team_player_feature_row(
             "formation_defensive_density_edge": (
                 home("formation_defensive_density") - away("formation_defensive_density")
             ),
+            "home_projection_attack_vs_away_resistance": (
+                home("projection_goal_threat")
+                + home("projection_assist_threat")
+                + home("projection_shot_threat") * 0.35
+                - away("projection_defensive_work")
+                - away("projection_keeper_coverage")
+            ),
+            "away_projection_attack_vs_home_resistance": (
+                away("projection_goal_threat")
+                + away("projection_assist_threat")
+                + away("projection_shot_threat") * 0.35
+                - home("projection_defensive_work")
+                - home("projection_keeper_coverage")
+            ),
+            "projection_creation_edge": (
+                home("projection_assist_threat") - away("projection_assist_threat")
+            ),
+            "projection_shot_pressure_edge": (
+                home("projection_shot_threat") - away("projection_shot_threat")
+            ),
+            "projection_keeper_edge": (
+                home("projection_keeper_coverage") - away("projection_keeper_coverage")
+            ),
+            "projection_card_risk_edge": (
+                away("projection_card_risk") - home("projection_card_risk")
+            ),
+            "projection_bench_attack_edge": (
+                home("projection_bench_goal_threat")
+                + home("projection_bench_assist_threat")
+                - away("projection_bench_goal_threat")
+                - away("projection_bench_assist_threat")
+            ),
+            "projection_balance_edge": (
+                home("projection_balance_score") - away("projection_balance_score")
+            ),
         }
+    )
+    row["projection_attack_matchup_diff"] = (
+        row["home_projection_attack_vs_away_resistance"]
+        - row["away_projection_attack_vs_home_resistance"]
     )
     return row
 

@@ -1,7 +1,10 @@
 import pytest
 import pandas as pd
 
-from worldcup2026.player_projections import project_player_match_performances
+from worldcup2026.player_projections import (
+    project_player_match_performances,
+    summarize_team_player_projections,
+)
 
 
 class ProjectionPredictor:
@@ -90,3 +93,16 @@ def test_player_match_projections_allocate_team_expected_goals(tmp_path):
         1.1,
         abs=0.02,
     )
+
+
+def test_projection_summaries_create_model_ready_team_features():
+    players = pd.DataFrame(_players("Home") + _players("Away"))
+
+    summaries = summarize_team_player_projections(players)
+    home = summaries[summaries["team"].eq("Home")].iloc[0]
+
+    assert home["projection_starter_count"] == 11
+    assert home["projection_bench_count"] == 7
+    assert home["projection_minutes_total"] > 700
+    assert home["projection_goal_threat"] > 0
+    assert home["projection_balance_score"] > 0

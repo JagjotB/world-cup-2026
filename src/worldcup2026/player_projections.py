@@ -23,6 +23,34 @@ BENCH_BASE_MINUTES = {
     "FW": 28.0,
 }
 
+PLAYER_PROJECTION_TEAM_FEATURE_COLUMNS = [
+    "projection_player_count",
+    "projection_starter_count",
+    "projection_bench_count",
+    "projection_minutes_total",
+    "projection_starter_minutes",
+    "projection_bench_minutes",
+    "projection_goal_threat",
+    "projection_assist_threat",
+    "projection_shot_threat",
+    "projection_defensive_work",
+    "projection_keeper_coverage",
+    "projection_card_risk",
+    "projection_starter_goal_threat",
+    "projection_starter_assist_threat",
+    "projection_starter_shot_threat",
+    "projection_starter_defensive_work",
+    "projection_bench_goal_threat",
+    "projection_bench_assist_threat",
+    "projection_bench_shot_threat",
+    "projection_bench_defensive_work",
+    "projection_top3_impact",
+    "projection_top5_impact",
+    "projection_attacking_impact",
+    "projection_defensive_impact",
+    "projection_balance_score",
+]
+
 
 def _num(row, column: str, default: float = 0.0) -> float:
     value = row.get(column, default)
@@ -151,6 +179,90 @@ def _add_projection_weights(pool: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def build_player_projection_pool(players: pd.DataFrame, team: str) -> pd.DataFrame:
+    pool = _projection_pool(players, team)
+    if pool.empty:
+        return pool
+    weighted = _add_projection_weights(pool)
+    weighted["baseline_projection_impact"] = (
+        weighted["goal_weight"] * 4.0
+        + weighted["assist_weight"] * 3.0
+        + weighted["shot_weight"] * 0.6
+        + weighted["defensive_weight"] * 0.16
+        + weighted["keeper_weight"] * 0.25
+        - weighted["card_weight"] * 0.9
+    )
+    return weighted
+
+
+def _pool_sum(pool: pd.DataFrame, column: str) -> float:
+    if pool.empty or column not in pool.columns:
+        return 0.0
+    value = pd.to_numeric(pool[column], errors="coerce").sum()
+    return 0.0 if pd.isna(value) else float(value)
+
+
+def _top_sum(pool: pd.DataFrame, column: str, count: int) -> float:
+    if pool.empty or column not in pool.columns:
+        return 0.0
+    values = pd.to_numeric(pool[column], errors="coerce").fillna(0.0)
+    return float(values.sort_values(ascending=False).head(count).sum())
+
+
+def summarize_team_player_projections(players: pd.DataFrame) -> pd.DataFrame:
+    if players is None or players.empty or "team" not in players.columns:
+        return pd.DataFrame(columns=["team", *PLAYER_PROJECTION_TEAM_FEATURE_COLUMNS])
+
+    rows: list[dict[str, object]] = []
+    for team in sorted(players["team"].dropna().astype(str).unique()):
+        pool = build_player_projection_pool(players, team)
+        if pool.empty:
+            rows.append({"team": team, **{column: 0.0 for column in PLAYER_PROJECTION_TEAM_FEATURE_COLUMNS}})
+            continue
+
+        starters = pool[pool["roster_role"].eq("starter")]
+        bench = pool[pool["roster_role"].eq("bench")]
+        attacking_impact = (
+            _pool_sum(pool, "goal_weight") * 4.0
+            + _pool_sum(pool, "assist_weight") * 3.0
+            + _pool_sum(pool, "shot_weight") * 0.6
+        )
+        defensive_impact = _pool_sum(pool, "defensive_weight") * 0.16 + _pool_sum(pool, "keeper_weight") * 0.25
+        card_drag = _pool_sum(pool, "card_weight") * 0.9
+        rows.append(
+            {
+                "team": team,
+                "projection_player_count": float(len(pool)),
+                "projection_starter_count": float(len(starters)),
+                "projection_bench_count": float(len(bench)),
+                "projection_minutes_total": _pool_sum(pool, "projected_minutes"),
+                "projection_starter_minutes": _pool_sum(starters, "projected_minutes"),
+                "projection_bench_minutes": _pool_sum(bench, "projected_minutes"),
+                "projection_goal_threat": _pool_sum(pool, "goal_weight"),
+                "projection_assist_threat": _pool_sum(pool, "assist_weight"),
+                "projection_shot_threat": _pool_sum(pool, "shot_weight"),
+                "projection_defensive_work": _pool_sum(pool, "defensive_weight"),
+                "projection_keeper_coverage": _pool_sum(pool, "keeper_weight"),
+                "projection_card_risk": _pool_sum(pool, "card_weight"),
+                "projection_starter_goal_threat": _pool_sum(starters, "goal_weight"),
+                "projection_starter_assist_threat": _pool_sum(starters, "assist_weight"),
+                "projection_starter_shot_threat": _pool_sum(starters, "shot_weight"),
+                "projection_starter_defensive_work": _pool_sum(starters, "defensive_weight"),
+                "projection_bench_goal_threat": _pool_sum(bench, "goal_weight"),
+                "projection_bench_assist_threat": _pool_sum(bench, "assist_weight"),
+                "projection_bench_shot_threat": _pool_sum(bench, "shot_weight"),
+                "projection_bench_defensive_work": _pool_sum(bench, "defensive_weight"),
+                "projection_top3_impact": _top_sum(pool, "baseline_projection_impact", 3),
+                "projection_top5_impact": _top_sum(pool, "baseline_projection_impact", 5),
+                "projection_attacking_impact": attacking_impact,
+                "projection_defensive_impact": defensive_impact,
+                "projection_balance_score": attacking_impact + defensive_impact - card_drag,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
 def _project_team_players(
     players: pd.DataFrame,
     team: str,
@@ -161,11 +273,10 @@ def _project_team_players(
     team_win_probability: float,
     draw_probability: float,
 ) -> list[dict[str, object]]:
-    pool = _projection_pool(players, team)
+    pool = build_player_projection_pool(players, team)
     if pool.empty:
         return []
 
-    pool = _add_projection_weights(pool)
     goal_weight_total = pool["goal_weight"].sum()
     assist_weight_total = pool["assist_weight"].sum()
     shot_weight_total = pool["shot_weight"].sum()

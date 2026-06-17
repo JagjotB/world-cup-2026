@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from worldcup2026.features import team_player_feature_row
 from worldcup2026.player_data import build_player_feature_tables, split_club
@@ -48,6 +49,7 @@ def test_build_player_feature_tables_from_squad_rows():
     assert team_features.loc[0, "players_gk"] == 1
     assert "top_11_attacking_score" in team_features.columns
     assert "starting_gk_keeper_score" in team_features.columns
+    assert "projection_goal_threat" in team_features.columns
     assert team_features.loc[0, "top_11_experience_score"] > 0
 
 
@@ -85,6 +87,40 @@ def test_team_player_feature_row_adds_matchup_edges():
     assert row["keeper_edge"] == 0.4
     assert row["bench_depth_edge"] == 1.0
     assert row["discipline_risk_edge"] == 0.3
+
+
+def test_team_player_feature_row_adds_projection_matchup_edges():
+    lookup = {
+        "home": {
+            "projection_goal_threat": 3.0,
+            "projection_assist_threat": 2.0,
+            "projection_shot_threat": 4.0,
+            "projection_defensive_work": 1.0,
+            "projection_keeper_coverage": 0.8,
+            "projection_card_risk": 0.4,
+            "projection_bench_goal_threat": 0.8,
+            "projection_bench_assist_threat": 0.4,
+            "projection_balance_score": 9.0,
+        },
+        "away": {
+            "projection_goal_threat": 2.0,
+            "projection_assist_threat": 1.0,
+            "projection_shot_threat": 3.0,
+            "projection_defensive_work": 0.6,
+            "projection_keeper_coverage": 0.5,
+            "projection_card_risk": 0.7,
+            "projection_bench_goal_threat": 0.3,
+            "projection_bench_assist_threat": 0.2,
+            "projection_balance_score": 6.0,
+        },
+    }
+
+    row = team_player_feature_row("Home", "Away", lookup, defaults={})
+
+    assert row["home_projection_attack_vs_away_resistance"] == pytest.approx(5.3)
+    assert row["away_projection_attack_vs_home_resistance"] == pytest.approx(2.25)
+    assert row["projection_attack_matchup_diff"] == pytest.approx(3.05)
+    assert row["projection_balance_edge"] == 3.0
 
 
 def test_build_player_features_uses_availability_lineups_and_tactics():

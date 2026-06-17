@@ -25,6 +25,7 @@ from .config import (
 )
 from .data import normalized_key
 from .lineups import DEFAULT_FORMATION, OUT_STATUSES, STARTER_STATUSES, player_lineup_score
+from .player_projections import PLAYER_PROJECTION_TEAM_FEATURE_COLUMNS, summarize_team_player_projections
 
 POSITIONS = {"GK", "DF", "MF", "FW"}
 DATE_PATTERN = re.compile(r"\d{2}/\d{2}/\d{4}")
@@ -67,6 +68,7 @@ LINEUP_TEAM_FEATURE_COLUMNS = [
     "starting_fw_attacking_score",
     "starting_fw_shot_volume_score",
     "bench_depth_score",
+    *PLAYER_PROJECTION_TEAM_FEATURE_COLUMNS,
 ]
 TACTIC_TEAM_FEATURE_COLUMNS = [
     "tactics_available",
@@ -1035,6 +1037,8 @@ def build_player_feature_tables(
     team_features = team_features.merge(top_caps, on="team", how="left")
     lineup_style_features = build_lineup_team_style_features(players)
     team_features = team_features.merge(lineup_style_features, on="team", how="left")
+    projection_features = summarize_team_player_projections(players)
+    team_features = team_features.merge(projection_features, on="team", how="left")
     for column in LINEUP_TEAM_FEATURE_COLUMNS:
         if column not in team_features.columns:
             team_features[column] = 0.0
