@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from .knockout import predict_knockout_resolution, simulate_knockout_match
+from .model import sample_score_for_outcome
 
 
 GROUP_MATCH_PAIR_ORDER = [(0, 1), (2, 3), (3, 0), (1, 2), (0, 2), (1, 3)]
@@ -142,6 +143,57 @@ def _result_from_actual(
     if actual["home_team"] == home and actual["away_team"] == away:
         return int(actual["home_score"]), int(actual["away_score"])
     return int(actual["away_score"]), int(actual["home_score"])
+
+
+def _group_prediction_key(group: object, home_team: object, away_team: object) -> tuple[str, str, str]:
+    return (str(group).upper(), str(home_team), str(away_team))
+
+
+def _build_group_prediction_lookup(
+    group_predictions: pd.DataFrame | None,
+) -> dict[tuple[str, str, str], dict[str, object]]:
+    if group_predictions is None or group_predictions.empty:
+        return {}
+
+    required_columns = {
+        "group",
+        "home_team",
+        "away_team",
+        "p_home_win",
+        "p_draw",
+        "p_away_win",
+        "expected_home_goals",
+        "expected_away_goals",
+    }
+    if not required_columns.issubset(group_predictions.columns):
+        return {}
+
+    return {
+        _group_prediction_key(row["group"], row["home_team"], row["away_team"]): row
+        for row in group_predictions.to_dict("records")
+    }
+
+
+def _simulate_group_match_from_prediction(
+    rng: np.random.Generator,
+    prediction_row: dict[str, object],
+) -> tuple[int, int]:
+    probabilities = np.array(
+        [
+            float(prediction_row["p_home_win"]),
+            float(prediction_row["p_draw"]),
+            float(prediction_row["p_away_win"]),
+        ],
+        dtype=float,
+    )
+    total = max(float(probabilities.sum()), 1e-12)
+    outcome = str(rng.choice(["H", "D", "A"], p=probabilities / total))
+    return sample_score_for_outcome(
+        rng,
+        float(prediction_row["expected_home_goals"]),
+        float(prediction_row["expected_away_goals"]),
+        outcome,
+    )
 
 
 def _empty_table(teams: pd.DataFrame, predictor) -> dict[str, dict[str, object]]:
@@ -292,6 +344,7 @@ def simulate_tournament_once(
     predictor,
     teams: pd.DataFrame,
     actual_results: pd.DataFrame | None = None,
+    group_prediction_lookup: dict[tuple[str, str, str], dict[str, object]] | None = None,
     seed: int | None = None,
     rng: np.random.Generator | None = None,
     collect_matches: bool = True,
@@ -307,9 +360,15 @@ def simulate_tournament_once(
         actual_score = _result_from_actual(fixture, actual_lookup)
         used_actual = actual_score is not None
         if actual_score is None:
-            simulated = predictor.simulate_match(home, away, rng=rng, neutral=True, allow_draw=True)
-            home_score = int(simulated["home_score"])
-            away_score = int(simulated["away_score"])
+            prediction_row = (group_prediction_lookup or {}).get(
+                _group_prediction_key(fixture["group"], home, away)
+            )
+            if prediction_row:
+                home_score, away_score = _simulate_group_match_from_prediction(rng, prediction_row)
+            else:
+                simulated = predictor.simulate_match(home, away, rng=rng, neutral=True, allow_draw=True)
+                home_score = int(simulated["home_score"])
+                away_score = int(simulated["away_score"])
         else:
             home_score, away_score = actual_score
 
@@ -437,6 +496,7 @@ def simulate_many(
     predictor,
     teams: pd.DataFrame,
     actual_results: pd.DataFrame | None = None,
+    group_predictions: pd.DataFrame | None = None,
     simulations: int = 1000,
     seed: int = 42,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -444,6 +504,7 @@ def simulate_many(
     teams_list = teams["team"].tolist()
     counts = {team: {stage: 0 for stage in STAGE_ORDER} for team in teams_list}
     last_matches = pd.DataFrame()
+    group_prediction_lookup = _build_group_prediction_lookup(group_predictions)
 
     for sim_idx in range(simulations):
         collect_matches = sim_idx == simulations - 1
@@ -451,6 +512,7 @@ def simulate_many(
             predictor,
             teams,
             actual_results=actual_results,
+            group_prediction_lookup=group_prediction_lookup,
             rng=rng,
             collect_matches=collect_matches,
         )

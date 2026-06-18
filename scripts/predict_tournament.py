@@ -141,6 +141,7 @@ def main() -> None:
         predictor,
         teams,
         actual_results=actual_results,
+        group_predictions=group_predictions,
         simulations=args.sims,
         seed=args.seed,
     )
