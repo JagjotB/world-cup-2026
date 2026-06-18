@@ -17,6 +17,11 @@ from worldcup2026.config import (
     TEAM_PLAYER_FEATURES_FILE,
 )
 from worldcup2026.data import load_aliases, load_historical_results
+from worldcup2026.edge_features import (
+    add_edge_feature_columns,
+    apply_edge_probability_adjustments,
+    load_edge_context,
+)
 from worldcup2026.group_stage import fetch_group_stage_schedule
 from worldcup2026.live import apply_played_results_to_predictor
 from worldcup2026.model import MatchPredictor
@@ -103,18 +108,60 @@ def main() -> None:
 
     played = schedule[schedule["status"].eq("played")].copy()
     predictor = load_predictor(args)
+    team_context, venue_context, match_context, team_player_features, player_readiness_signals = load_edge_context()
+    decision_policy = predictor.artifact.metadata.get("decision_policy", {})
 
     rows = []
     played = sort_played_matches(played)
     for row in played.itertuples(index=False):
         pred = predictor.predict_match(row.home_team, row.away_team, neutral=True)
         decision = predictor.decision_for_prediction(pred)
+        prediction_frame = pd.DataFrame(
+            [
+                {
+                    "match_number": getattr(row, "match_number", None),
+                    "group": row.group,
+                    "local_date": row.local_date,
+                    "local_time": row.local_time,
+                    "utc_offset": getattr(row, "utc_offset", ""),
+                    "kickoff_utc": getattr(row, "kickoff_utc", ""),
+                    "venue": getattr(row, "venue", ""),
+                    "home_team": row.home_team,
+                    "away_team": row.away_team,
+                    "predicted_result": decision.recommended_result,
+                    "raw_top_result": decision.raw_top_result,
+                    "pick_confidence": decision.confidence,
+                    "top_probability": decision.top_probability,
+                    "runner_up_probability": decision.runner_up_probability,
+                    "probability_margin": decision.probability_margin,
+                    "draw_override_applied": decision.draw_override_applied,
+                    "p_home_win": pred.p_home_win,
+                    "p_draw": pred.p_draw,
+                    "p_away_win": pred.p_away_win,
+                    "expected_home_goals": pred.expected_home_goals,
+                    "expected_away_goals": pred.expected_away_goals,
+                }
+            ]
+        )
+        prediction_frame = add_edge_feature_columns(
+            prediction_frame,
+            schedule=schedule,
+            team_context=team_context,
+            venue_context=venue_context,
+            match_context=match_context,
+            team_player_features=team_player_features,
+            player_readiness_signals=player_readiness_signals,
+        )
+        adjusted = apply_edge_probability_adjustments(
+            prediction_frame,
+            decision_policy=decision_policy,
+        ).iloc[0]
         probs = {
-            row.home_team: pred.p_home_win,
-            "Draw": pred.p_draw,
-            row.away_team: pred.p_away_win,
+            row.home_team: float(adjusted["p_home_win"]),
+            "Draw": float(adjusted["p_draw"]),
+            row.away_team: float(adjusted["p_away_win"]),
         }
-        pick = decision.recommended_result
+        pick = str(adjusted["predicted_result"])
         actual = actual_result(row)
         rows.append(
             {
@@ -125,15 +172,20 @@ def main() -> None:
                 "score": f"{int(row.home_score)}-{int(row.away_score)}",
                 "actual": actual,
                 "pick": pick,
-                "raw_top_result": decision.raw_top_result,
-                "pick_confidence": decision.confidence,
-                "draw_override_applied": decision.draw_override_applied,
+                "raw_top_result": adjusted["raw_top_result"],
+                "pick_confidence": adjusted["pick_confidence"],
+                "draw_override_applied": bool(adjusted["draw_override_applied"]),
                 "correct": pick == actual,
-                "p_home": pred.p_home_win,
-                "p_draw": pred.p_draw,
-                "p_away": pred.p_away_win,
+                "p_home": probs[row.home_team],
+                "p_draw": probs["Draw"],
+                "p_away": probs[row.away_team],
                 "picked_probability": probs[pick],
                 "actual_probability": probs[actual],
+                "edge_total_signal": adjusted["edge_total_signal"],
+                "edge_home_travel_origin": adjusted["edge_home_travel_origin"],
+                "edge_away_travel_origin": adjusted["edge_away_travel_origin"],
+                "edge_home_win_probability_delta": adjusted["edge_home_win_probability_delta"],
+                "edge_away_win_probability_delta": adjusted["edge_away_win_probability_delta"],
             }
         )
         if args.sequential_live:

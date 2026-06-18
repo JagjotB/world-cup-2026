@@ -17,7 +17,11 @@ from worldcup2026.config import (
     PLAYER_MATCH_PROJECTIONS_FILE,
     UPCOMING_GROUP_STAGE_PREDICTIONS_FILE,
 )
-from worldcup2026.edge_features import add_edge_feature_columns, load_edge_context
+from worldcup2026.edge_features import (
+    add_edge_feature_columns,
+    apply_edge_probability_adjustments,
+    load_edge_context,
+)
 from worldcup2026.news_signals import add_news_signal_columns
 from worldcup2026.group_stage import (
     add_match_usefulness_filters,
@@ -82,7 +86,6 @@ def main() -> None:
         upcoming_only=not args.all,
         from_date=None if args.all else args.from_date,
     )
-    predictions = add_match_usefulness_filters(predictions)
     player_projections = pd.DataFrame()
     if args.player_features.exists():
         player_projections = project_player_match_performances(
@@ -104,6 +107,11 @@ def main() -> None:
         team_player_features=team_player_features,
         player_readiness_signals=player_readiness_signals,
     )
+    predictions = apply_edge_probability_adjustments(
+        predictions,
+        decision_policy=predictor.artifact.metadata.get("decision_policy", {}),
+    )
+    predictions = add_match_usefulness_filters(predictions)
     predictions = add_news_signal_columns(predictions)
     predictions.to_csv(args.predictions_output, index=False)
 
@@ -125,6 +133,8 @@ def main() -> None:
             "p_home_win",
             "p_draw",
             "p_away_win",
+            "edge_home_win_probability_delta",
+            "edge_away_win_probability_delta",
             "double_chance_pick",
             "double_chance_useful",
             "either_team_wins_probability",
@@ -142,6 +152,10 @@ def main() -> None:
             "edge_total_signal",
             "edge_total_signal_pick",
             "edge_total_signal_strength",
+            "edge_home_travel_origin",
+            "edge_away_travel_origin",
+            "edge_home_travel_km",
+            "edge_away_travel_km",
             "edge_readiness_edge",
             "edge_home_readiness_samples",
             "edge_away_readiness_samples",

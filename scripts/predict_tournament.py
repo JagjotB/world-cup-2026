@@ -20,7 +20,11 @@ from worldcup2026.config import (
     TEAMS_2026_FILE,
 )
 from worldcup2026.data import load_actual_results, load_teams, normalized_key
-from worldcup2026.edge_features import add_edge_feature_columns, load_edge_context
+from worldcup2026.edge_features import (
+    add_edge_feature_columns,
+    apply_edge_probability_adjustments,
+    load_edge_context,
+)
 from worldcup2026.group_stage import add_match_usefulness_filters, fetch_group_stage_schedule
 from worldcup2026.lineups import lineup_string, load_player_features, project_all_starting_lineups
 from worldcup2026.live import (
@@ -117,7 +121,6 @@ def main() -> None:
 
     group_predictions = predict_group_match_probabilities(predictor, teams)
     group_predictions = add_schedule_context(group_predictions, schedule)
-    group_predictions = add_match_usefulness_filters(group_predictions)
     team_context, venue_context, match_context, team_player_features, player_readiness_signals = load_edge_context()
     group_predictions = add_edge_feature_columns(
         group_predictions,
@@ -128,6 +131,11 @@ def main() -> None:
         team_player_features=team_player_features,
         player_readiness_signals=player_readiness_signals,
     )
+    group_predictions = apply_edge_probability_adjustments(
+        group_predictions,
+        decision_policy=predictor.artifact.metadata.get("decision_policy", {}),
+    )
+    group_predictions = add_match_usefulness_filters(group_predictions)
     group_predictions = add_news_signal_columns(group_predictions)
     probabilities, sampled_matches = simulate_many(
         predictor,

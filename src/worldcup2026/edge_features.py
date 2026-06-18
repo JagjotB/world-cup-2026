@@ -14,13 +14,19 @@ from .config import (
     VENUE_CONTEXT_FILE,
 )
 from .data import normalized_key
+from .decision import choose_recommended_result
 
 
 DEFAULT_REST_DAYS = 5.0
+EDGE_PROBABILITY_LOGIT_SCALE = 0.22
+EDGE_GOAL_SHIFT_PER_SIGNAL = 0.05
+EDGE_SIGNAL_CLIP = 2.5
 
 EDGE_FEATURE_COLUMNS = [
     "edge_home_travel_km",
     "edge_away_travel_km",
+    "edge_home_travel_origin",
+    "edge_away_travel_origin",
     "edge_home_body_clock_hours",
     "edge_away_body_clock_hours",
     "edge_home_rest_days",
@@ -163,6 +169,8 @@ def add_edge_feature_columns(
             {
                 "edge_home_travel_km": round(travel["home_travel_km"], 1),
                 "edge_away_travel_km": round(travel["away_travel_km"], 1),
+                "edge_home_travel_origin": str(home_context.get("travel_origin", "base")),
+                "edge_away_travel_origin": str(away_context.get("travel_origin", "base")),
                 "edge_home_body_clock_hours": round(travel["home_body_clock_hours"], 2),
                 "edge_away_body_clock_hours": round(travel["away_body_clock_hours"], 2),
                 "edge_home_rest_days": round(home_rest_days, 2),
@@ -210,6 +218,90 @@ def add_edge_feature_columns(
     for column in EDGE_FEATURE_COLUMNS:
         enriched[column] = edge_frame[column]
     return enriched
+
+
+def apply_edge_probability_adjustments(
+    matches: pd.DataFrame,
+    decision_policy: dict[str, float] | None = None,
+) -> pd.DataFrame:
+    adjusted = matches.copy()
+    required_columns = {
+        "home_team",
+        "away_team",
+        "p_home_win",
+        "p_draw",
+        "p_away_win",
+        "expected_home_goals",
+        "expected_away_goals",
+        "edge_total_signal",
+    }
+    if adjusted.empty or not required_columns.issubset(adjusted.columns):
+        return adjusted
+
+    base_columns = {
+        "p_home_win": "base_p_home_win",
+        "p_draw": "base_p_draw",
+        "p_away_win": "base_p_away_win",
+        "expected_home_goals": "base_expected_home_goals",
+        "expected_away_goals": "base_expected_away_goals",
+    }
+    for source, target in base_columns.items():
+        if target not in adjusted.columns:
+            adjusted[target] = adjusted[source]
+
+    for index, row in adjusted.iterrows():
+        row_dict = row.to_dict()
+        p_home = _num(row_dict, "p_home_win", 0.0)
+        p_draw = _num(row_dict, "p_draw", 0.0)
+        p_away = _num(row_dict, "p_away_win", 0.0)
+        total = max(p_home + p_draw + p_away, 1e-9)
+        p_home /= total
+        p_draw /= total
+        p_away /= total
+
+        non_draw_total = max(p_home + p_away, 1e-9)
+        home_share = _clip(p_home / non_draw_total, 0.001, 0.999)
+        edge_signal = _clip(_num(row_dict, "edge_total_signal", 0.0), -EDGE_SIGNAL_CLIP, EDGE_SIGNAL_CLIP)
+        logit_shift = edge_signal * EDGE_PROBABILITY_LOGIT_SCALE
+        home_logit = np.log(home_share / (1.0 - home_share)) + logit_shift
+        adjusted_home_share = 1.0 / (1.0 + np.exp(-home_logit))
+        adjusted_p_home = float(non_draw_total * adjusted_home_share)
+        adjusted_p_away = float(non_draw_total * (1.0 - adjusted_home_share))
+
+        home_goal_delta = edge_signal * EDGE_GOAL_SHIFT_PER_SIGNAL
+        base_home_goals = _num(row_dict, "expected_home_goals", 1.2)
+        base_away_goals = _num(row_dict, "expected_away_goals", 1.2)
+        adjusted_home_goals = float(max(base_home_goals + home_goal_delta, 0.15))
+        adjusted_away_goals = float(max(base_away_goals - home_goal_delta, 0.15))
+
+        decision = choose_recommended_result(
+            str(row_dict.get("home_team", "")),
+            str(row_dict.get("away_team", "")),
+            adjusted_p_home,
+            p_draw,
+            adjusted_p_away,
+            decision_policy,
+        )
+
+        adjusted.at[index, "p_home_win"] = adjusted_p_home
+        adjusted.at[index, "p_draw"] = float(p_draw)
+        adjusted.at[index, "p_away_win"] = adjusted_p_away
+        adjusted.at[index, "expected_home_goals"] = adjusted_home_goals
+        adjusted.at[index, "expected_away_goals"] = adjusted_away_goals
+        adjusted.at[index, "predicted_result"] = decision.recommended_result
+        adjusted.at[index, "raw_top_result"] = decision.raw_top_result
+        adjusted.at[index, "pick_confidence"] = decision.confidence
+        adjusted.at[index, "top_probability"] = decision.top_probability
+        adjusted.at[index, "runner_up_probability"] = decision.runner_up_probability
+        adjusted.at[index, "probability_margin"] = decision.probability_margin
+        adjusted.at[index, "draw_override_applied"] = decision.draw_override_applied
+        adjusted.at[index, "edge_probability_logit_shift"] = round(logit_shift, 4)
+        adjusted.at[index, "edge_home_win_probability_delta"] = round(adjusted_p_home - p_home, 4)
+        adjusted.at[index, "edge_away_win_probability_delta"] = round(adjusted_p_away - p_away, 4)
+        adjusted.at[index, "edge_home_expected_goals_delta"] = round(adjusted_home_goals - base_home_goals, 3)
+        adjusted.at[index, "edge_away_expected_goals_delta"] = round(adjusted_away_goals - base_away_goals, 3)
+
+    return adjusted
 
 
 def _read_csv_if_exists(path: Path) -> pd.DataFrame:
@@ -454,9 +546,27 @@ def _team_context_for_key(
 ) -> dict[str, object]:
     context = dict(lookup.get(key, {}))
     context.setdefault("country_code", "")
-    context["base_latitude"] = _num(context, "base_latitude", _num(venue, "latitude", 39.5))
-    context["base_longitude"] = _num(context, "base_longitude", _num(venue, "longitude", -98.35))
-    context["home_utc_offset"] = _num(context, "home_utc_offset", venue_offset)
+    base_latitude = _num(context, "base_latitude", _num(venue, "latitude", 39.5))
+    base_longitude = _num(context, "base_longitude", _num(venue, "longitude", -98.35))
+    home_utc_offset = _num(context, "home_utc_offset", venue_offset)
+    has_camp_location = _has_value(context.get("camp_latitude")) and _has_value(
+        context.get("camp_longitude")
+    )
+    context["base_latitude"] = base_latitude
+    context["base_longitude"] = base_longitude
+    context["home_utc_offset"] = home_utc_offset
+    context["travel_latitude"] = (
+        _num(context, "camp_latitude", base_latitude) if has_camp_location else base_latitude
+    )
+    context["travel_longitude"] = (
+        _num(context, "camp_longitude", base_longitude) if has_camp_location else base_longitude
+    )
+    context["travel_utc_offset"] = (
+        _num(context, "camp_utc_offset", home_utc_offset)
+        if has_camp_location
+        else home_utc_offset
+    )
+    context["travel_origin"] = "camp" if has_camp_location else "base"
     for column, default in {
         "heat_acclimation": defaults.get("heat_acclimation", 0.50),
         "altitude_acclimation": defaults.get("altitude_acclimation", 0.20),
@@ -488,19 +598,19 @@ def _travel_edges(
     venue_lat = _num(venue, "latitude", 39.5)
     venue_lon = _num(venue, "longitude", -98.35)
     home_travel_km = _haversine_km(
-        _num(home_context, "base_latitude", venue_lat),
-        _num(home_context, "base_longitude", venue_lon),
+        _num(home_context, "travel_latitude", venue_lat),
+        _num(home_context, "travel_longitude", venue_lon),
         venue_lat,
         venue_lon,
     )
     away_travel_km = _haversine_km(
-        _num(away_context, "base_latitude", venue_lat),
-        _num(away_context, "base_longitude", venue_lon),
+        _num(away_context, "travel_latitude", venue_lat),
+        _num(away_context, "travel_longitude", venue_lon),
         venue_lat,
         venue_lon,
     )
-    home_body_clock = _clock_shift_hours(_num(home_context, "home_utc_offset", venue_offset), venue_offset)
-    away_body_clock = _clock_shift_hours(_num(away_context, "home_utc_offset", venue_offset), venue_offset)
+    home_body_clock = _clock_shift_hours(_num(home_context, "travel_utc_offset", venue_offset), venue_offset)
+    away_body_clock = _clock_shift_hours(_num(away_context, "travel_utc_offset", venue_offset), venue_offset)
     home_load = _travel_load(
         home_travel_km,
         home_body_clock,
@@ -921,6 +1031,14 @@ def _num(row: dict[str, object], column: str, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return float(default)
+
+
+def _has_value(value: object) -> bool:
+    if value is None:
+        return False
+    if pd.isna(value):
+        return False
+    return str(value).strip() != ""
 
 
 def _humidity(value: float) -> float:

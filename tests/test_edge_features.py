@@ -1,6 +1,10 @@
 import pandas as pd
 
-from worldcup2026.edge_features import EDGE_FEATURE_COLUMNS, add_edge_feature_columns
+from worldcup2026.edge_features import (
+    EDGE_FEATURE_COLUMNS,
+    add_edge_feature_columns,
+    apply_edge_probability_adjustments,
+)
 
 
 def _team_features(team: str, strength: float) -> dict[str, object]:
@@ -224,3 +228,120 @@ def test_edge_features_are_safe_without_optional_context():
 
     assert set(EDGE_FEATURE_COLUMNS).issubset(enriched.columns)
     assert enriched.iloc[0]["edge_total_signal_strength"] in {"thin", "useful", "strong"}
+
+
+def test_edge_features_prefer_camp_location_for_travel():
+    matches = pd.DataFrame(
+        [
+            {
+                "local_date": "2026-06-18",
+                "local_time": "20:00",
+                "utc_offset": "UTC-04:00",
+                "venue": "BMO Field , Toronto",
+                "home_team": "Camped",
+                "away_team": "Base Only",
+            }
+        ]
+    )
+    venue_context = pd.DataFrame(
+        [
+            {
+                "venue_key": "bmofieldtoronto",
+                "venue": "BMO Field , Toronto",
+                "country_code": "CAN",
+                "city": "Toronto",
+                "latitude": 43.63,
+                "longitude": -79.42,
+                "altitude_m": 76,
+                "roof_type": "open",
+                "surface": "grass",
+                "avg_june_temp_c": 23,
+                "avg_june_humidity": 0.63,
+                "wind_exposure": 0.45,
+            }
+        ]
+    )
+    team_context = pd.DataFrame(
+        [
+            {
+                "team": "Camped",
+                "country_code": "JPN",
+                "base_latitude": 35.68,
+                "base_longitude": 139.76,
+                "home_utc_offset": 9,
+                "camp_city": "Toronto",
+                "camp_latitude": 43.66,
+                "camp_longitude": -79.38,
+                "camp_utc_offset": -4,
+                "heat_acclimation": 0.55,
+                "altitude_acclimation": 0.05,
+                "travel_resilience": 0.45,
+                "crowd_support_base": 0.45,
+            },
+            {
+                "team": "Base Only",
+                "country_code": "JPN",
+                "base_latitude": 35.68,
+                "base_longitude": 139.76,
+                "home_utc_offset": 9,
+                "camp_city": "",
+                "camp_latitude": "",
+                "camp_longitude": "",
+                "camp_utc_offset": "",
+                "heat_acclimation": 0.55,
+                "altitude_acclimation": 0.05,
+                "travel_resilience": 0.45,
+                "crowd_support_base": 0.45,
+            },
+        ]
+    )
+
+    enriched = add_edge_feature_columns(
+        matches,
+        team_context=team_context,
+        venue_context=venue_context,
+    )
+    row = enriched.iloc[0]
+
+    assert row["edge_home_travel_origin"] == "camp"
+    assert row["edge_away_travel_origin"] == "base"
+    assert row["edge_home_travel_km"] < 10
+    assert row["edge_away_travel_km"] > 10000
+    assert row["edge_home_body_clock_hours"] == 0
+    assert row["edge_away_body_clock_hours"] > 10
+
+
+def test_edge_probability_adjustment_uses_signal_without_changing_draw_probability():
+    matches = pd.DataFrame(
+        [
+            {
+                "home_team": "Home",
+                "away_team": "Away",
+                "predicted_result": "Away",
+                "raw_top_result": "Away",
+                "pick_confidence": "low",
+                "top_probability": 0.39,
+                "runner_up_probability": 0.37,
+                "probability_margin": 0.02,
+                "draw_override_applied": False,
+                "p_home_win": 0.37,
+                "p_draw": 0.24,
+                "p_away_win": 0.39,
+                "expected_home_goals": 1.1,
+                "expected_away_goals": 1.2,
+                "edge_total_signal": 1.4,
+            }
+        ]
+    )
+
+    adjusted = apply_edge_probability_adjustments(matches)
+    row = adjusted.iloc[0]
+
+    assert row["p_home_win"] > matches.iloc[0]["p_home_win"]
+    assert row["p_away_win"] < matches.iloc[0]["p_away_win"]
+    assert row["p_draw"] == matches.iloc[0]["p_draw"]
+    assert row["expected_home_goals"] > matches.iloc[0]["expected_home_goals"]
+    assert row["expected_away_goals"] < matches.iloc[0]["expected_away_goals"]
+    assert row["predicted_result"] == "Home"
+    assert row["base_p_home_win"] == matches.iloc[0]["p_home_win"]
+    assert row["edge_home_win_probability_delta"] > 0
