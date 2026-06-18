@@ -51,6 +51,38 @@ PLAYER_PROJECTION_TEAM_FEATURE_COLUMNS = [
     "projection_balance_score",
 ]
 
+MATCH_TEAM_PROJECTION_COLUMNS = [
+    "projected_home_shots",
+    "projected_away_shots",
+    "projected_home_shots_on_target",
+    "projected_away_shots_on_target",
+    "projected_sot_edge",
+    "projected_more_shots_on_target",
+    "more_shots_on_target_useful",
+    "more_shots_on_target_strength",
+    "projected_home_corners",
+    "projected_away_corners",
+    "projected_home_first_half_corners",
+    "projected_home_second_half_corners",
+    "projected_away_first_half_corners",
+    "projected_away_second_half_corners",
+    "p_home_1plus_corners_each_half",
+    "p_away_1plus_corners_each_half",
+    "home_1plus_corners_each_half_pick",
+    "away_1plus_corners_each_half_pick",
+    "home_1plus_corners_each_half_useful_pick",
+    "away_1plus_corners_each_half_useful_pick",
+    "home_1plus_corners_each_half_strength",
+    "away_1plus_corners_each_half_strength",
+]
+
+CORNER_EACH_HALF_PICK_THRESHOLD = 0.55
+SOT_EDGE_USEFUL_THRESHOLD = 0.50
+SOT_EDGE_STRONG_THRESHOLD = 1.25
+CORNER_YES_USEFUL_THRESHOLD = 0.62
+CORNER_YES_STRONG_THRESHOLD = 0.70
+CORNER_NO_USEFUL_MAX_PROBABILITY = 0.52
+
 
 def _num(row, column: str, default: float = 0.0) -> float:
     value = row.get(column, default)
@@ -409,3 +441,236 @@ def project_player_match_performances(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     projections.to_csv(output_path, index=False)
     return projections
+
+
+def _project_corner_each_half_probability(
+    projected_shots: float,
+    projected_shots_on_target: float,
+    expected_goals: float,
+    win_probability: float,
+    draw_probability: float,
+) -> tuple[float, float, float, float]:
+    projected_shots = _clip(projected_shots, 0.0)
+    projected_shots_on_target = _clip(projected_shots_on_target, 0.0)
+    expected_goals = _clip(expected_goals, 0.0)
+    win_probability = float(np.clip(win_probability, 0.0, 1.0))
+    draw_probability = float(np.clip(draw_probability, 0.0, 1.0))
+
+    expected_corners = (
+        0.95
+        + projected_shots * 0.12
+        + projected_shots_on_target * 0.18
+        + expected_goals * 0.45
+        + max(win_probability - 0.25, 0.0) * 0.95
+        + draw_probability * 0.10
+    )
+    expected_corners = _clip(expected_corners, 0.8, 9.5)
+
+    first_half_corners = expected_corners * 0.43
+    second_half_corners = expected_corners * 0.57
+    raw_probability = (1.0 - np.exp(-first_half_corners)) * (
+        1.0 - np.exp(-second_half_corners)
+    )
+    probability = float(np.clip(raw_probability * 0.86, 0.0, 0.95))
+    return (
+        round(expected_corners, 2),
+        round(first_half_corners, 2),
+        round(second_half_corners, 2),
+        round(probability, 4),
+    )
+
+
+def _sot_strength(edge: float) -> str:
+    abs_edge = abs(edge)
+    if abs_edge >= SOT_EDGE_STRONG_THRESHOLD:
+        return "strong"
+    if abs_edge >= SOT_EDGE_USEFUL_THRESHOLD:
+        return "useful"
+    return "no_play"
+
+
+def _corner_useful_pick(probability: float) -> str:
+    if probability >= CORNER_YES_USEFUL_THRESHOLD:
+        return "Yes"
+    if probability <= CORNER_NO_USEFUL_MAX_PROBABILITY:
+        return "No"
+    return "No play"
+
+
+def _corner_strength(probability: float) -> str:
+    if probability >= CORNER_YES_STRONG_THRESHOLD:
+        return "strong_yes"
+    if probability >= CORNER_YES_USEFUL_THRESHOLD:
+        return "useful_yes"
+    if probability <= CORNER_NO_USEFUL_MAX_PROBABILITY:
+        return "useful_no"
+    return "no_play"
+
+
+def add_match_team_projection_totals(
+    matches: pd.DataFrame,
+    player_projections: pd.DataFrame,
+) -> pd.DataFrame:
+    enriched = matches.copy()
+    for column in MATCH_TEAM_PROJECTION_COLUMNS:
+        if column not in enriched.columns:
+            enriched[column] = pd.NA
+
+    if matches.empty or player_projections is None or player_projections.empty:
+        return enriched
+
+    required_columns = {
+        "match_number",
+        "group",
+        "local_date",
+        "local_time",
+        "home_team",
+        "away_team",
+        "team",
+        "projected_shots",
+        "projected_shots_on_target",
+    }
+    if not required_columns.issubset(player_projections.columns):
+        return enriched
+
+    key_columns = ["match_number", "group", "local_date", "local_time", "home_team", "away_team"]
+    projections = player_projections.copy()
+    projections["projected_shots_on_target"] = pd.to_numeric(
+        projections["projected_shots_on_target"],
+        errors="coerce",
+    ).fillna(0.0)
+    projections["projected_shots"] = pd.to_numeric(
+        projections["projected_shots"],
+        errors="coerce",
+    ).fillna(0.0)
+    team_totals = (
+        projections.groupby([*key_columns, "team"], dropna=False)
+        .agg(
+            projected_shots=("projected_shots", "sum"),
+            projected_shots_on_target=("projected_shots_on_target", "sum"),
+        )
+        .reset_index()
+    )
+
+    def projected_team_totals(row) -> tuple[float, float, float, float]:
+        match_totals = team_totals
+        for column in key_columns:
+            value = row[column]
+            if pd.isna(value):
+                match_totals = match_totals[match_totals[column].isna()]
+            else:
+                match_totals = match_totals[match_totals[column].eq(value)]
+        home = match_totals[match_totals["team"].eq(row["home_team"])]
+        away = match_totals[match_totals["team"].eq(row["away_team"])]
+        return (
+            round(float(home["projected_shots"].iloc[0]), 2) if not home.empty else 0.0,
+            round(float(away["projected_shots"].iloc[0]), 2) if not away.empty else 0.0,
+            round(float(home["projected_shots_on_target"].iloc[0]), 2) if not home.empty else 0.0,
+            round(float(away["projected_shots_on_target"].iloc[0]), 2) if not away.empty else 0.0,
+        )
+
+    home_shots_values: list[float] = []
+    away_shots_values: list[float] = []
+    home_values: list[float] = []
+    away_values: list[float] = []
+    edges: list[float] = []
+    picks: list[str] = []
+    sot_useful: list[bool] = []
+    sot_strengths: list[str] = []
+    home_corners: list[float] = []
+    away_corners: list[float] = []
+    home_first_half_corners: list[float] = []
+    home_second_half_corners: list[float] = []
+    away_first_half_corners: list[float] = []
+    away_second_half_corners: list[float] = []
+    home_corner_probabilities: list[float] = []
+    away_corner_probabilities: list[float] = []
+    home_corner_picks: list[bool] = []
+    away_corner_picks: list[bool] = []
+    home_corner_useful_picks: list[str] = []
+    away_corner_useful_picks: list[str] = []
+    home_corner_strengths: list[str] = []
+    away_corner_strengths: list[str] = []
+    for row in enriched.itertuples(index=False):
+        row_dict = row._asdict()
+        home_shots, away_shots, home_sot, away_sot = projected_team_totals(row_dict)
+        edge = round(home_sot - away_sot, 2)
+        home_expected_goals = float(row_dict.get("expected_home_goals") or 0.0)
+        away_expected_goals = float(row_dict.get("expected_away_goals") or 0.0)
+        p_home_win = float(row_dict.get("p_home_win") or 0.0)
+        p_draw = float(row_dict.get("p_draw") or 0.0)
+        p_away_win = float(row_dict.get("p_away_win") or 0.0)
+        home_corner_total, home_corner_first, home_corner_second, home_corner_probability = (
+            _project_corner_each_half_probability(
+                home_shots,
+                home_sot,
+                home_expected_goals,
+                p_home_win,
+                p_draw,
+            )
+        )
+        away_corner_total, away_corner_first, away_corner_second, away_corner_probability = (
+            _project_corner_each_half_probability(
+                away_shots,
+                away_sot,
+                away_expected_goals,
+                p_away_win,
+                p_draw,
+            )
+        )
+        home_shots_values.append(home_shots)
+        away_shots_values.append(away_shots)
+        home_values.append(home_sot)
+        away_values.append(away_sot)
+        edges.append(edge)
+        sot_strength = _sot_strength(edge)
+        sot_strengths.append(sot_strength)
+        sot_useful.append(sot_strength != "no_play")
+        home_corners.append(home_corner_total)
+        away_corners.append(away_corner_total)
+        home_first_half_corners.append(home_corner_first)
+        home_second_half_corners.append(home_corner_second)
+        away_first_half_corners.append(away_corner_first)
+        away_second_half_corners.append(away_corner_second)
+        home_corner_probabilities.append(home_corner_probability)
+        away_corner_probabilities.append(away_corner_probability)
+        home_corner_picks.append(
+            home_corner_probability >= CORNER_EACH_HALF_PICK_THRESHOLD
+        )
+        away_corner_picks.append(
+            away_corner_probability >= CORNER_EACH_HALF_PICK_THRESHOLD
+        )
+        home_corner_useful_picks.append(_corner_useful_pick(home_corner_probability))
+        away_corner_useful_picks.append(_corner_useful_pick(away_corner_probability))
+        home_corner_strengths.append(_corner_strength(home_corner_probability))
+        away_corner_strengths.append(_corner_strength(away_corner_probability))
+        if edge > 0:
+            picks.append(str(row_dict["home_team"]))
+        elif edge < 0:
+            picks.append(str(row_dict["away_team"]))
+        else:
+            picks.append("Even")
+
+    enriched["projected_home_shots"] = home_shots_values
+    enriched["projected_away_shots"] = away_shots_values
+    enriched["projected_home_shots_on_target"] = home_values
+    enriched["projected_away_shots_on_target"] = away_values
+    enriched["projected_sot_edge"] = edges
+    enriched["projected_more_shots_on_target"] = picks
+    enriched["more_shots_on_target_useful"] = sot_useful
+    enriched["more_shots_on_target_strength"] = sot_strengths
+    enriched["projected_home_corners"] = home_corners
+    enriched["projected_away_corners"] = away_corners
+    enriched["projected_home_first_half_corners"] = home_first_half_corners
+    enriched["projected_home_second_half_corners"] = home_second_half_corners
+    enriched["projected_away_first_half_corners"] = away_first_half_corners
+    enriched["projected_away_second_half_corners"] = away_second_half_corners
+    enriched["p_home_1plus_corners_each_half"] = home_corner_probabilities
+    enriched["p_away_1plus_corners_each_half"] = away_corner_probabilities
+    enriched["home_1plus_corners_each_half_pick"] = home_corner_picks
+    enriched["away_1plus_corners_each_half_pick"] = away_corner_picks
+    enriched["home_1plus_corners_each_half_useful_pick"] = home_corner_useful_picks
+    enriched["away_1plus_corners_each_half_useful_pick"] = away_corner_useful_picks
+    enriched["home_1plus_corners_each_half_strength"] = home_corner_strengths
+    enriched["away_1plus_corners_each_half_strength"] = away_corner_strengths
+    return enriched

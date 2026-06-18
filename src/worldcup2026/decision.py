@@ -8,6 +8,10 @@ import numpy as np
 DEFAULT_DECISION_POLICY = {
     "draw_min_probability": 0.40,
     "draw_margin_over_team": 0.0,
+    # P(draw) must exceed this to promote draw; 1.0 = disabled
+    "draw_promote_threshold": 1.0,
+    # draw may trail the top pick by at most this much when promoting
+    "draw_promote_margin": 0.0,
     "low_confidence_probability": 0.45,
     "medium_confidence_probability": 0.55,
     "low_confidence_margin": 0.06,
@@ -26,7 +30,13 @@ class DecisionResult:
     draw_override_applied: bool
 
 
-def result_probabilities(home_team: str, away_team: str, p_home: float, p_draw: float, p_away: float) -> dict[str, float]:
+def result_probabilities(
+    home_team: str,
+    away_team: str,
+    p_home: float,
+    p_draw: float,
+    p_away: float,
+) -> dict[str, float]:
     return {
         home_team: float(p_home),
         "Draw": float(p_draw),
@@ -34,7 +44,11 @@ def result_probabilities(home_team: str, away_team: str, p_home: float, p_draw: 
     }
 
 
-def classify_confidence(top_probability: float, margin: float, policy: dict[str, float] | None = None) -> str:
+def classify_confidence(
+    top_probability: float,
+    margin: float,
+    policy: dict[str, float] | None = None,
+) -> str:
     policy = {**DEFAULT_DECISION_POLICY, **(policy or {})}
     if (
         top_probability < policy["low_confidence_probability"]
@@ -58,8 +72,12 @@ def choose_recommended_result(
     policy: dict[str, float] | None = None,
 ) -> DecisionResult:
     policy = {**DEFAULT_DECISION_POLICY, **(policy or {})}
-    probabilities = result_probabilities(home_team, away_team, p_home, p_draw, p_away)
-    ranked = sorted(probabilities.items(), key=lambda item: item[1], reverse=True)
+    probabilities = result_probabilities(
+        home_team, away_team, p_home, p_draw, p_away
+    )
+    ranked = sorted(
+        probabilities.items(), key=lambda item: item[1], reverse=True
+    )
     raw_top_result, top_probability = ranked[0]
     runner_up_probability = ranked[1][1]
     probability_margin = top_probability - runner_up_probability
@@ -70,14 +88,23 @@ def choose_recommended_result(
         best_team = home_team if p_home >= p_away else away_team
         best_team_probability = max(p_home, p_away)
         draw_edge = p_draw - best_team_probability
-        if p_draw < policy["draw_min_probability"] and draw_edge <= policy["draw_margin_over_team"]:
+        if (
+            p_draw < policy["draw_min_probability"]
+            and draw_edge <= policy["draw_margin_over_team"]
+        ):
             recommended_result = best_team
             draw_override_applied = True
+    elif p_draw >= policy["draw_promote_threshold"]:
+        best_team_probability = max(p_home, p_away)
+        if p_draw >= best_team_probability - policy["draw_promote_margin"]:
+            recommended_result = "Draw"
 
     return DecisionResult(
         recommended_result=recommended_result,
         raw_top_result=raw_top_result,
-        confidence=classify_confidence(top_probability, probability_margin, policy),
+        confidence=classify_confidence(
+            top_probability, probability_margin, policy
+        ),
         top_probability=top_probability,
         runner_up_probability=runner_up_probability,
         probability_margin=probability_margin,
@@ -101,32 +128,51 @@ def choose_labels_with_policy(
             probs.get("A", 0.0),
             policy,
         )
-        output.append("H" if decision.recommended_result == "H" else "A" if decision.recommended_result == "A" else "D")
+        if decision.recommended_result == "H":
+            output.append("H")
+        elif decision.recommended_result == "A":
+            output.append("A")
+        else:
+            output.append("D")
     return np.array(output)
 
 
-def tune_decision_policy(probabilities: np.ndarray, y_true, labels: list[str]) -> dict[str, float]:
+def tune_decision_policy(
+    probabilities: np.ndarray,
+    y_true,
+    labels: list[str],
+) -> dict[str, float]:
     best_policy = dict(DEFAULT_DECISION_POLICY)
     best_accuracy = -1.0
     best_draw_gap = float("inf")
     actual_draw_rate = float(y_true.eq("D").mean())
 
-    for draw_min in np.linspace(0.36, 0.70, 18):
+    for draw_min in np.linspace(0.22, 0.45, 18):
         for draw_margin in np.linspace(0.00, 0.25, 11):
-            policy = {
-                **DEFAULT_DECISION_POLICY,
-                "draw_min_probability": float(draw_min),
-                "draw_margin_over_team": float(draw_margin),
-            }
-            predicted = choose_labels_with_policy(probabilities, labels, policy)
-            accuracy = float(np.mean(predicted == np.array(y_true)))
-            draw_gap = abs(float(np.mean(predicted == "D")) - actual_draw_rate)
-            if accuracy > best_accuracy or (
-                accuracy == best_accuracy and draw_gap < best_draw_gap
-            ):
-                best_accuracy = accuracy
-                best_draw_gap = draw_gap
-                best_policy = policy
+            for draw_promote in [1.0, 0.26, 0.28, 0.30, 0.32]:
+                for draw_promote_margin in [0.0, 0.04, 0.08]:
+                    policy = {
+                        **DEFAULT_DECISION_POLICY,
+                        "draw_min_probability": float(draw_min),
+                        "draw_margin_over_team": float(draw_margin),
+                        "draw_promote_threshold": float(draw_promote),
+                        "draw_promote_margin": float(draw_promote_margin),
+                    }
+                    predicted = choose_labels_with_policy(
+                        probabilities, labels, policy
+                    )
+                    y_arr = np.array(y_true)
+                    accuracy = float(np.mean(predicted == y_arr))
+                    draw_gap = abs(
+                        float(np.mean(predicted == "D")) - actual_draw_rate
+                    )
+                    if accuracy > best_accuracy or (
+                        accuracy == best_accuracy
+                        and draw_gap < best_draw_gap
+                    ):
+                        best_accuracy = accuracy
+                        best_draw_gap = draw_gap
+                        best_policy = policy
 
     best_policy["training_policy_accuracy"] = best_accuracy
     best_policy["training_policy_draw_rate_gap"] = best_draw_gap

@@ -17,14 +17,23 @@ from worldcup2026.config import (
     PLAYER_MATCH_PROJECTIONS_FILE,
     UPCOMING_GROUP_STAGE_PREDICTIONS_FILE,
 )
-from worldcup2026.group_stage import fetch_group_stage_schedule, predict_group_stage_matches
+from worldcup2026.edge_features import add_edge_feature_columns, load_edge_context
+from worldcup2026.news_signals import add_news_signal_columns
+from worldcup2026.group_stage import (
+    add_match_usefulness_filters,
+    fetch_group_stage_schedule,
+    predict_group_stage_matches,
+)
 from worldcup2026.lineups import load_player_features
 from worldcup2026.live import (
     apply_played_results_to_predictor,
     played_schedule_results,
 )
 from worldcup2026.model import MatchPredictor
-from worldcup2026.player_projections import project_player_match_performances
+from worldcup2026.player_projections import (
+    add_match_team_projection_totals,
+    project_player_match_performances,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,6 +82,7 @@ def main() -> None:
         upcoming_only=not args.all,
         from_date=None if args.all else args.from_date,
     )
+    predictions = add_match_usefulness_filters(predictions)
     player_projections = pd.DataFrame()
     if args.player_features.exists():
         player_projections = project_player_match_performances(
@@ -83,6 +93,19 @@ def main() -> None:
             upcoming_only=not args.all,
             from_date=None if args.all else args.from_date,
         )
+        predictions = add_match_team_projection_totals(predictions, player_projections)
+    team_context, venue_context, match_context, team_player_features, player_readiness_signals = load_edge_context()
+    predictions = add_edge_feature_columns(
+        predictions,
+        schedule=schedule,
+        team_context=team_context,
+        venue_context=venue_context,
+        match_context=match_context,
+        team_player_features=team_player_features,
+        player_readiness_signals=player_readiness_signals,
+    )
+    predictions = add_news_signal_columns(predictions)
+    predictions.to_csv(args.predictions_output, index=False)
 
     print(f"Wrote group-stage schedule: {args.schedule_output}")
     print(f"Wrote group-stage predictions: {args.predictions_output}")
@@ -102,8 +125,38 @@ def main() -> None:
             "p_home_win",
             "p_draw",
             "p_away_win",
+            "double_chance_pick",
+            "double_chance_useful",
+            "either_team_wins_probability",
+            "either_team_wins_useful",
+            "btts_pick",
+            "btts_useful",
+            "projected_more_shots_on_target",
+            "projected_home_shots_on_target",
+            "projected_away_shots_on_target",
+            "more_shots_on_target_useful",
+            "p_home_1plus_corners_each_half",
+            "p_away_1plus_corners_each_half",
+            "home_1plus_corners_each_half_useful_pick",
+            "away_1plus_corners_each_half_useful_pick",
+            "edge_total_signal",
+            "edge_total_signal_pick",
+            "edge_total_signal_strength",
+            "edge_readiness_edge",
+            "edge_home_readiness_samples",
+            "edge_away_readiness_samples",
+            "edge_flags",
+            "news_narrative_home",
+            "news_narrative_away",
+            "news_injury_edge",
+            "news_morale_edge",
+            "news_upset_risk",
+            "news_signal_confidence",
         ]
-        print(predictions[preview_columns].head(20).to_string(index=False))
+        available_preview_columns = [
+            column for column in preview_columns if column in predictions.columns
+        ]
+        print(predictions[available_preview_columns].head(20).to_string(index=False))
 
 
 if __name__ == "__main__":

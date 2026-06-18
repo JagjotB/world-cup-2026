@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import exp, factorial
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from .features import (
     tournament_importance,
     team_player_feature_row,
 )
+from .tactical_embeddings import style_matchup_features
+from .squad_graph import gnn_match_features
 
 
 @dataclass
@@ -31,6 +34,10 @@ class MatchModelArtifact:
     team_player_feature_defaults: dict[str, float] | None = None
     draw_model: Any | None = None
     non_draw_classifier: Any | None = None
+    team_rating_uncertainties: dict[str, float] | None = None
+    style_vectors: dict[str, object] | None = None
+    style_clusters: dict[str, int] | None = None
+    gnn_lookup: dict[str, dict[str, float]] | None = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +125,10 @@ class MatchPredictor:
         self._form_lookup = {
             normalized_key(team): team for team in artifact.team_form.keys()
         }
+        uncertainties = artifact.team_rating_uncertainties or {}
+        self._uncertainty_lookup = {
+            normalized_key(team): unc for team, unc in uncertainties.items()
+        }
         self._prediction_cache: dict[tuple[str, str, bool, str], MatchPrediction] = {}
 
     @classmethod
@@ -135,6 +146,11 @@ class MatchPredictor:
     def team_rating(self, team: str) -> float:
         model_name = self.model_team_name(team)
         return float(self.artifact.team_ratings.get(model_name, 1500.0))
+
+    def _team_uncertainty(self, team: str) -> float:
+        model_name = self.model_team_name(team)
+        key = normalized_key(model_name)
+        return float(self._uncertainty_lookup.get(key, 50.0))
 
     def _team_form(self, team: str) -> dict[str, float]:
         model_name = self.model_team_name(team)
@@ -160,6 +176,9 @@ class MatchPredictor:
         away_form = self._team_form(away_team)
         importance = tournament_importance(tournament)
 
+        home_uncertainty = self._team_uncertainty(home_team)
+        away_uncertainty = self._team_uncertainty(away_team)
+
         row = {
             "home_elo": home_elo,
             "away_elo": away_elo,
@@ -176,10 +195,18 @@ class MatchPredictor:
             "is_qualifier": int(0.75 <= importance < 0.95),
             "is_friendly": int(importance <= 0.4),
             "tournament_importance": importance,
+            "home_elo_uncertainty": home_uncertainty,
+            "away_elo_uncertainty": away_uncertainty,
+            "elo_uncertainty_diff": home_uncertainty - away_uncertainty,
+            "combined_uncertainty": home_uncertainty + away_uncertainty,
         }
 
-        team_player_lookup = getattr(self.artifact, "team_player_feature_lookup", None)
-        team_player_defaults = getattr(self.artifact, "team_player_feature_defaults", None)
+        team_player_lookup = getattr(
+            self.artifact, "team_player_feature_lookup", None
+        )
+        team_player_defaults = getattr(
+            self.artifact, "team_player_feature_defaults", None
+        )
         if team_player_lookup is not None and team_player_defaults is not None:
             row.update(
                 team_player_feature_row(
@@ -189,7 +216,31 @@ class MatchPredictor:
                     team_player_defaults,
                 )
             )
+
+        style_vecs = getattr(self.artifact, "style_vectors", None) or {}
+        style_clus = getattr(self.artifact, "style_clusters", None) or {}
+        if style_vecs:
+            row.update(
+                style_matchup_features(
+                    home_team, away_team, style_vecs, style_clus
+                )
+            )
+
+        gnn_lookup = getattr(self.artifact, "gnn_lookup", None) or {}
+        if gnn_lookup:
+            row.update(gnn_match_features(home_team, away_team, gnn_lookup))
+
         return pd.DataFrame([row], columns=self.artifact.feature_columns)
+
+    @staticmethod
+    def _poisson_draw_probability(home_lambda: float, away_lambda: float, max_goals: int = 10) -> float:
+        p = 0.0
+        for k in range(max_goals + 1):
+            p += (
+                exp(-home_lambda) * home_lambda ** k / factorial(k)
+                * exp(-away_lambda) * away_lambda ** k / factorial(k)
+            )
+        return float(np.clip(p, 0.0, 1.0))
 
     def predict_match(
         self,
@@ -219,6 +270,21 @@ class MatchPredictor:
 
         home_goals = float(np.clip(self.artifact.home_goal_model.predict(x)[0], 0.15, 5.5))
         away_goals = float(np.clip(self.artifact.away_goal_model.predict(x)[0], 0.15, 5.5))
+
+        draw_blend_weight = float(
+            self.artifact.metadata.get("draw_blend_weight", 0.0)
+            if isinstance(getattr(self.artifact, "metadata", None), dict) else 0.0
+        )
+        if draw_blend_weight > 0.0:
+            p_draw_poisson = self._poisson_draw_probability(home_goals, away_goals)
+            p_draw_blended = draw_blend_weight * p_draw_poisson + (1.0 - draw_blend_weight) * probs["D"]
+            ha_total = max(probs["H"] + probs["A"], 1e-9)
+            scale = (1.0 - p_draw_blended) / ha_total
+            probs = {
+                "H": float(probs["H"] * scale),
+                "D": float(p_draw_blended),
+                "A": float(probs["A"] * scale),
+            }
 
         prediction = MatchPrediction(
             home_team=home_team,

@@ -24,11 +24,15 @@ SCHEDULE_TEAM_ALIASES = {
     "Curaçao": "Curacao",
     "IR Iran": "Iran",
     "Korea Republic": "South Korea",
+    "Turkey": "Turkiye",
     "Türkiye": "Turkiye",
     "USA": "United States",
 }
 
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 world-cup-2026 predictor"}
+
+DOUBLE_CHANCE_USEFUL_TOP_PROBABILITY = 0.45
+BTTS_YES_MIN_TEAM_XG = 0.70
 
 VENUE_CITY_UTC_OFFSETS = {
     "Arlington": -5,
@@ -223,3 +227,75 @@ def predict_group_stage_matches(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(output_path, index=False)
     return predictions.reset_index(drop=True)
+
+
+def add_match_usefulness_filters(matches: pd.DataFrame) -> pd.DataFrame:
+    filtered = matches.copy()
+    if filtered.empty:
+        return filtered
+
+    required_columns = {
+        "home_team",
+        "away_team",
+        "predicted_result",
+        "top_probability",
+        "p_home_win",
+        "p_draw",
+        "p_away_win",
+        "expected_home_goals",
+        "expected_away_goals",
+    }
+    if not required_columns.issubset(filtered.columns):
+        return filtered
+
+    double_chance_picks: list[str] = []
+    double_chance_probabilities: list[float] = []
+    double_chance_useful: list[bool] = []
+    either_team_wins_probabilities: list[float] = []
+    btts_picks: list[str] = []
+    btts_useful: list[bool] = []
+    for row in filtered.itertuples(index=False):
+        row_dict = row._asdict()
+        home_team = str(row_dict["home_team"])
+        away_team = str(row_dict["away_team"])
+        predicted_result = str(row_dict["predicted_result"])
+        p_home = float(row_dict["p_home_win"])
+        p_draw = float(row_dict["p_draw"])
+        p_away = float(row_dict["p_away_win"])
+        top_probability = float(row_dict["top_probability"])
+        either_team_wins_probabilities.append(round(p_home + p_away, 4))
+
+        if predicted_result == home_team:
+            double_chance_picks.append(f"{home_team} or Draw")
+            double_chance_probabilities.append(round(p_home + p_draw, 4))
+        elif predicted_result == away_team:
+            double_chance_picks.append(f"{away_team} or Draw")
+            double_chance_probabilities.append(round(p_away + p_draw, 4))
+        else:
+            non_draw = home_team if p_home >= p_away else away_team
+            non_draw_probability = p_home if p_home >= p_away else p_away
+            double_chance_picks.append(f"{non_draw} or Draw")
+            double_chance_probabilities.append(round(non_draw_probability + p_draw, 4))
+        double_chance_useful.append(top_probability >= DOUBLE_CHANCE_USEFUL_TOP_PROBABILITY)
+
+        home_xg = float(row_dict["expected_home_goals"])
+        away_xg = float(row_dict["expected_away_goals"])
+        if home_xg >= BTTS_YES_MIN_TEAM_XG and away_xg >= BTTS_YES_MIN_TEAM_XG:
+            btts_picks.append("Yes")
+            btts_useful.append(True)
+        else:
+            btts_picks.append("No play")
+            btts_useful.append(False)
+
+    filtered["double_chance_pick"] = double_chance_picks
+    filtered["double_chance_probability"] = double_chance_probabilities
+    filtered["double_chance_useful"] = double_chance_useful
+    filtered["either_team_wins_pick"] = "Either team wins / No draw"
+    filtered["either_team_wins_probability"] = either_team_wins_probabilities
+    filtered["either_team_wins_useful"] = False
+    filtered["btts_pick"] = btts_picks
+    filtered["btts_useful"] = btts_useful
+    filtered["btts_min_team_xg"] = filtered[
+        ["expected_home_goals", "expected_away_goals"]
+    ].min(axis=1)
+    return filtered

@@ -19,14 +19,16 @@ from worldcup2026.config import (
     SAMPLED_KNOCKOUT_PREDICTIONS_FILE,
     TEAMS_2026_FILE,
 )
-from worldcup2026.data import load_actual_results, load_teams
-from worldcup2026.group_stage import fetch_group_stage_schedule
+from worldcup2026.data import load_actual_results, load_teams, normalized_key
+from worldcup2026.edge_features import add_edge_feature_columns, load_edge_context
+from worldcup2026.group_stage import add_match_usefulness_filters, fetch_group_stage_schedule
 from worldcup2026.lineups import lineup_string, load_player_features, project_all_starting_lineups
 from worldcup2026.live import (
     apply_played_results_to_predictor,
     played_schedule_results,
 )
 from worldcup2026.model import MatchPredictor
+from worldcup2026.news_signals import add_news_signal_columns
 from worldcup2026.tournament import (
     predict_group_match_probabilities,
     predict_sampled_knockout_matches,
@@ -49,6 +51,47 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def add_schedule_context(group_predictions: pd.DataFrame, schedule: pd.DataFrame) -> pd.DataFrame:
+    if group_predictions.empty or schedule.empty:
+        return group_predictions
+
+    context_columns = [
+        "status",
+        "local_date",
+        "local_time",
+        "utc_offset",
+        "kickoff_utc",
+        "venue",
+        "source_url",
+    ]
+    schedule_lookup: dict[tuple[str, str, str], dict[str, object]] = {}
+    for row in schedule.to_dict("records"):
+        key = (
+            str(row.get("group", "")),
+            normalized_key(row.get("home_team", "")),
+            normalized_key(row.get("away_team", "")),
+        )
+        reverse_key = (key[0], key[2], key[1])
+        context = {column: row.get(column, "") for column in context_columns}
+        schedule_lookup[key] = context
+        schedule_lookup.setdefault(reverse_key, context)
+
+    enriched = group_predictions.copy()
+    for column in context_columns:
+        enriched[column] = ""
+    for index, row in enriched.iterrows():
+        key = (
+            str(row.get("group", "")),
+            normalized_key(row.get("home_team", "")),
+            normalized_key(row.get("away_team", "")),
+        )
+        context = schedule_lookup.get(key)
+        if context:
+            for column in context_columns:
+                enriched.at[index, column] = context.get(column, "")
+    return enriched
+
+
 def main() -> None:
     args = parse_args()
     if not args.model_path.exists():
@@ -60,19 +103,32 @@ def main() -> None:
     predictor = MatchPredictor.load(args.model_path)
     teams = load_teams(args.teams)
     actual_results = load_actual_results(args.results)
+    schedule = (
+        fetch_group_stage_schedule(args.schedule)
+        if args.refresh_schedule or not args.schedule.exists()
+        else pd.read_csv(args.schedule)
+    )
     live_results_applied = 0
     if not args.no_live_results:
-        schedule = (
-            fetch_group_stage_schedule(args.schedule)
-            if args.refresh_schedule or not args.schedule.exists()
-            else pd.read_csv(args.schedule)
-        )
         schedule_results = played_schedule_results(schedule)
         if not schedule_results.empty:
             live_results_applied = apply_played_results_to_predictor(predictor, schedule_results)
             actual_results = pd.concat([actual_results, schedule_results], ignore_index=True)
 
     group_predictions = predict_group_match_probabilities(predictor, teams)
+    group_predictions = add_schedule_context(group_predictions, schedule)
+    group_predictions = add_match_usefulness_filters(group_predictions)
+    team_context, venue_context, match_context, team_player_features, player_readiness_signals = load_edge_context()
+    group_predictions = add_edge_feature_columns(
+        group_predictions,
+        schedule=schedule,
+        team_context=team_context,
+        venue_context=venue_context,
+        match_context=match_context,
+        team_player_features=team_player_features,
+        player_readiness_signals=player_readiness_signals,
+    )
+    group_predictions = add_news_signal_columns(group_predictions)
     probabilities, sampled_matches = simulate_many(
         predictor,
         teams,

@@ -7,6 +7,8 @@ from math import log
 import pandas as pd
 
 from .player_projections import PLAYER_PROJECTION_TEAM_FEATURE_COLUMNS
+from .squad_graph import GNN_MATCH_FEATURE_COLUMNS, gnn_match_features
+from .tactical_embeddings import STYLE_FEATURE_COLUMNS, style_matchup_features
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,10 @@ FEATURE_COLUMNS = [
     "is_qualifier",
     "is_friendly",
     "tournament_importance",
+    "home_elo_uncertainty",
+    "away_elo_uncertainty",
+    "elo_uncertainty_diff",
+    "combined_uncertainty",
 ]
 
 TEAM_PLAYER_FEATURE_SOURCE_COLUMNS = [
@@ -159,7 +165,12 @@ TEAM_PLAYER_FEATURE_COLUMNS = [
     *PLAYER_MATCHUP_FEATURE_COLUMNS,
 ]
 
-ENHANCED_FEATURE_COLUMNS = FEATURE_COLUMNS + TEAM_PLAYER_FEATURE_COLUMNS
+ENHANCED_FEATURE_COLUMNS = (
+    FEATURE_COLUMNS
+    + TEAM_PLAYER_FEATURE_COLUMNS
+    + STYLE_FEATURE_COLUMNS
+    + GNN_MATCH_FEATURE_COLUMNS
+)
 
 
 def tournament_importance(tournament: str) -> float:
@@ -219,10 +230,25 @@ def _goal_margin_multiplier(home_score: int, away_score: int) -> float:
     return 1.0 + log(goal_diff)
 
 
+def _team_uncertainty(
+    deltas: deque[float],
+    game_count: int,
+    base: float = 150.0,
+    delta_window: int = 10,
+) -> float:
+    """Rolling Elo-delta std + new-team penalty gives a per-team uncertainty score."""
+    new_team_penalty = base / (game_count + 1) ** 0.5
+    if len(deltas) < 2:
+        return new_team_penalty
+    mean_d = sum(deltas) / len(deltas)
+    var_d = sum((d - mean_d) ** 2 for d in deltas) / len(deltas)
+    return var_d ** 0.5 + new_team_penalty
+
+
 def build_training_frame(
     results: pd.DataFrame,
     settings: EloSettings | None = None,
-) -> tuple[pd.DataFrame, dict[str, float], dict[str, dict[str, float]]]:
+) -> tuple[pd.DataFrame, dict[str, float], dict[str, dict[str, float]], dict[str, float]]:
     settings = settings or EloSettings()
     ratings: defaultdict[str, float] = defaultdict(lambda: settings.base_rating)
     points_form: defaultdict[str, deque[float]] = defaultdict(
@@ -231,6 +257,8 @@ def build_training_frame(
     gd_form: defaultdict[str, deque[float]] = defaultdict(
         lambda: deque(maxlen=settings.form_window)
     )
+    elo_deltas: defaultdict[str, deque[float]] = defaultdict(lambda: deque(maxlen=10))
+    game_counts: defaultdict[str, int] = defaultdict(int)
 
     rows: list[dict[str, object]] = []
 
@@ -249,6 +277,9 @@ def build_training_frame(
         away_form_points = _average(points_form[away])
         home_form_gd = _average(gd_form[home])
         away_form_gd = _average(gd_form[away])
+
+        home_uncertainty = _team_uncertainty(elo_deltas[home], game_counts[home])
+        away_uncertainty = _team_uncertainty(elo_deltas[away], game_counts[away])
 
         rows.append(
             {
@@ -274,17 +305,24 @@ def build_training_frame(
                 "is_qualifier": int(0.75 <= importance < 0.95),
                 "is_friendly": int(importance <= 0.4),
                 "tournament_importance": importance,
+                "home_elo_uncertainty": home_uncertainty,
+                "away_elo_uncertainty": away_uncertainty,
+                "elo_uncertainty_diff": home_uncertainty - away_uncertainty,
+                "combined_uncertainty": home_uncertainty + away_uncertainty,
             }
         )
 
         home_actual = score_points(home_score, away_score)
-        away_actual = 1.0 - home_actual
         home_expected = expected_score(home_elo + home_advantage, away_elo)
         multiplier = _goal_margin_multiplier(home_score, away_score)
         delta = elo_k_factor(tournament, settings) * multiplier * (home_actual - home_expected)
 
         ratings[home] += delta
         ratings[away] -= delta
+        elo_deltas[home].append(delta)
+        elo_deltas[away].append(-delta)
+        game_counts[home] += 1
+        game_counts[away] += 1
 
         points_form[home].append(3.0 if home_score > away_score else 1.0 if home_score == away_score else 0.0)
         points_form[away].append(3.0 if away_score > home_score else 1.0 if home_score == away_score else 0.0)
@@ -298,7 +336,11 @@ def build_training_frame(
         }
         for team in ratings.keys()
     }
-    return pd.DataFrame(rows), dict(ratings), team_form
+    team_uncertainties = {
+        team: _team_uncertainty(elo_deltas[team], game_counts[team])
+        for team in ratings.keys()
+    }
+    return pd.DataFrame(rows), dict(ratings), team_form, team_uncertainties
 
 
 def build_team_player_feature_lookup(
@@ -497,12 +539,41 @@ def add_team_player_features(
     frame: pd.DataFrame,
     team_player_features: pd.DataFrame | None,
     aliases: dict[str, str] | None = None,
+    style_vectors: dict | None = None,
+    style_clusters: dict | None = None,
+    gnn_lookup: dict | None = None,
 ) -> tuple[pd.DataFrame, dict[str, dict[str, float]], dict[str, float]]:
-    lookup, defaults = build_team_player_feature_lookup(team_player_features, aliases=aliases)
-    enhanced_rows = [
-        team_player_feature_row(str(row.home_team), str(row.away_team), lookup, defaults)
-        for row in frame.itertuples(index=False)
-    ]
+    lookup, defaults = build_team_player_feature_lookup(
+        team_player_features, aliases=aliases
+    )
+    style_vectors = style_vectors or {}
+    style_clusters = style_clusters or {}
+    gnn_lookup = gnn_lookup or {}
+    enhanced_rows = []
+    for row in frame.itertuples(index=False):
+        r = team_player_feature_row(
+            str(row.home_team), str(row.away_team), lookup, defaults
+        )
+        if style_vectors:
+            r.update(
+                style_matchup_features(
+                    str(row.home_team),
+                    str(row.away_team),
+                    style_vectors,
+                    style_clusters,
+                )
+            )
+        else:
+            r.update({col: 0.0 for col in STYLE_FEATURE_COLUMNS})
+        if gnn_lookup:
+            r.update(
+                gnn_match_features(
+                    str(row.home_team), str(row.away_team), gnn_lookup
+                )
+            )
+        else:
+            r.update({col: 0.0 for col in GNN_MATCH_FEATURE_COLUMNS})
+        enhanced_rows.append(r)
     enhanced = pd.concat(
         [frame.reset_index(drop=True), pd.DataFrame(enhanced_rows)],
         axis=1,

@@ -1,0 +1,17 @@
+venue_key,venue,country_code,city,latitude,longitude,altitude_m,roof_type,surface,avg_june_temp_c,avg_june_humidity,wind_exposure
+arrowheadstadiumkansascity,"Arrowhead Stadium , Kansas City",USA,Kansas City,39.05,-94.48,270,open,grass,27,0.65,0.55
+attstadiumarlington,"AT&T Stadium , Arlington",USA,Arlington,32.75,-97.09,190,retractable,grass,31,0.62,0.20
+bcplacevancouver,"BC Place , Vancouver",CAN,Vancouver,49.28,-123.11,5,retractable,turf,18,0.70,0.25
+bmofieldtoronto,"BMO Field , Toronto",CAN,Toronto,43.63,-79.42,76,open,grass,23,0.63,0.45
+estadioakronzapopan,"Estadio Akron , Zapopan",MEX,Zapopan,20.68,-103.46,1570,open,grass,27,0.46,0.40
+estadioaztecamexicocity,"Estadio Azteca , Mexico City",MEX,Mexico City,19.30,-99.15,2240,open,grass,24,0.45,0.35
+estadiobbvaguadalupe,"Estadio BBVA , Guadalupe",MEX,Guadalupe,25.67,-100.24,500,open,grass,32,0.58,0.35
+gillettestadiumfoxborough,"Gillette Stadium , Foxborough",USA,Foxborough,42.09,-71.26,88,open,grass,24,0.68,0.45
+hardrockstadiummiami gardens,"Hard Rock Stadium , Miami Gardens",USA,Miami Gardens,25.96,-80.24,2,canopy,grass,31,0.74,0.35
+levisstadiumsantaclara,"Levi's Stadium , Santa Clara",USA,Santa Clara,37.40,-121.97,10,open,grass,24,0.56,0.40
+lincolnfinancialfieldphiladelphia,"Lincoln Financial Field , Philadelphia",USA,Philadelphia,39.90,-75.17,12,open,grass,27,0.67,0.45
+lumenfieldseattle,"Lumen Field , Seattle",USA,Seattle,47.60,-122.33,5,open,turf,19,0.70,0.45
+mercedesbenzstadiumatlanta,"Mercedes-Benz Stadium , Atlanta",USA,Atlanta,33.76,-84.40,320,retractable,grass,29,0.70,0.15
+metlifestadiumeastrutherford,"MetLife Stadium , East Rutherford",USA,East Rutherford,40.81,-74.07,7,open,grass,26,0.66,0.50
+nrgstadiumhouston,"NRG Stadium , Houston",USA,Houston,29.68,-95.41,13,retractable,grass,32,0.74,0.20
+sofistadiuminglewood,"SoFi Stadium , Inglewood",USA,Inglewood,33.95,-118.34,38,canopy,grass,23,0.62,0.15

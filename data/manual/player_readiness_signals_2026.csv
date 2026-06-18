@@ -1,0 +1,1 @@
+local_date,team,player_name,source_type,source_url,consent_status,include_signal,confidence,readiness_score,recovery_score,sleep_hours,sleep_quality_score,hrv_delta_pct,resting_hr_delta_pct,strain_7d,acute_load_delta_pct,last_activity_distance_km,minutes_adjustment,notes

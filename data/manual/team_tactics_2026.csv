@@ -1,1 +1,49 @@
 team,formation,pressing_intensity,defensive_line,tempo,directness,possession_style,width,set_piece_strength,transition_speed,manager_style,notes,updated_at
+Algeria,4-3-3,0.55,0.45,0.60,0.60,0.45,0.55,0.50,0.65,structured_counter,,2026-06-18
+Argentina,4-3-3,0.70,0.55,0.75,0.55,0.65,0.70,0.60,0.75,attacking_flexible,,2026-06-18
+Australia,4-3-3,0.65,0.50,0.65,0.65,0.50,0.60,0.55,0.65,high_energy_direct,,2026-06-18
+Austria,3-4-3,0.75,0.60,0.70,0.50,0.60,0.65,0.55,0.70,high_press_structured,,2026-06-18
+Belgium,4-3-3,0.60,0.50,0.65,0.55,0.60,0.65,0.65,0.70,balanced_technical,,2026-06-18
+Bosnia and Herzegovina,4-2-3-1,0.50,0.40,0.55,0.65,0.45,0.55,0.55,0.55,defensive_structured,,2026-06-18
+Brazil,4-2-3-1,0.65,0.55,0.70,0.50,0.65,0.75,0.60,0.75,possession_attacking,,2026-06-18
+Canada,4-3-3,0.70,0.55,0.70,0.55,0.55,0.65,0.55,0.70,high_press_direct,,2026-06-18
+Cape Verde,4-4-2,0.55,0.35,0.55,0.65,0.40,0.55,0.50,0.60,defensive_counter,,2026-06-18
+Colombia,4-2-3-1,0.60,0.50,0.65,0.55,0.60,0.65,0.55,0.70,technical_transition,,2026-06-18
+Croatia,4-3-3,0.60,0.50,0.60,0.45,0.65,0.60,0.60,0.60,possession_patient,,2026-06-18
+Curacao,4-3-3,0.45,0.35,0.55,0.60,0.40,0.50,0.40,0.55,defensive_compact,,2026-06-18
+Czechia,4-2-3-1,0.60,0.45,0.60,0.60,0.50,0.60,0.60,0.60,balanced_direct,,2026-06-18
+DR Congo,4-3-3,0.55,0.40,0.65,0.65,0.45,0.60,0.45,0.65,direct_athletic,,2026-06-18
+Ecuador,4-3-3,0.65,0.50,0.65,0.55,0.55,0.65,0.55,0.65,high_press_balanced,,2026-06-18
+Egypt,4-2-3-1,0.55,0.40,0.55,0.55,0.50,0.55,0.55,0.60,defensive_organised,,2026-06-18
+England,4-3-3,0.70,0.55,0.70,0.50,0.65,0.70,0.75,0.65,balanced_pressing,,2026-06-18
+France,4-3-3,0.65,0.55,0.70,0.55,0.65,0.70,0.65,0.80,counter_possession,,2026-06-18
+Germany,4-2-3-1,0.75,0.60,0.75,0.55,0.65,0.70,0.65,0.75,high_press_fluid,,2026-06-18
+Ghana,4-3-3,0.60,0.45,0.65,0.60,0.50,0.60,0.50,0.65,direct_physical,,2026-06-18
+Haiti,4-4-2,0.45,0.35,0.55,0.65,0.35,0.50,0.40,0.60,defensive_block,,2026-06-18
+Iran,4-2-3-1,0.55,0.40,0.55,0.60,0.45,0.55,0.55,0.60,defensive_counter,,2026-06-18
+Iraq,4-3-3,0.55,0.40,0.60,0.60,0.45,0.55,0.50,0.60,balanced_counter,,2026-06-18
+Ivory Coast,4-3-3,0.60,0.45,0.65,0.60,0.55,0.65,0.55,0.70,athletic_direct,,2026-06-18
+Japan,4-3-3,0.80,0.60,0.75,0.45,0.65,0.65,0.55,0.75,gegenpressing_technical,,2026-06-18
+Jordan,4-4-2,0.45,0.35,0.50,0.60,0.40,0.50,0.45,0.55,defensive_low_block,,2026-06-18
+Mexico,4-3-3,0.60,0.50,0.65,0.50,0.60,0.65,0.55,0.65,possession_technical,,2026-06-18
+Morocco,4-3-3,0.75,0.55,0.65,0.50,0.55,0.65,0.60,0.70,high_press_defensive,,2026-06-18
+Netherlands,4-3-3,0.70,0.60,0.70,0.55,0.65,0.70,0.60,0.70,total_football,,2026-06-18
+New Zealand,4-4-2,0.55,0.40,0.60,0.65,0.40,0.55,0.50,0.60,direct_organised,,2026-06-18
+Norway,4-3-3,0.65,0.50,0.65,0.65,0.50,0.65,0.65,0.65,direct_physical,,2026-06-18
+Panama,4-4-2,0.55,0.35,0.55,0.65,0.40,0.50,0.50,0.55,low_block_counter,,2026-06-18
+Paraguay,4-4-2,0.55,0.40,0.55,0.65,0.45,0.55,0.55,0.60,defensive_direct,,2026-06-18
+Portugal,4-3-3,0.65,0.55,0.70,0.50,0.65,0.70,0.70,0.70,technical_possession,,2026-06-18
+Qatar,3-4-3,0.60,0.50,0.65,0.50,0.65,0.60,0.50,0.60,possession_structured,,2026-06-18
+Saudi Arabia,4-2-3-1,0.60,0.45,0.60,0.55,0.55,0.60,0.55,0.65,organised_counter,,2026-06-18
+Scotland,4-3-3,0.70,0.50,0.65,0.60,0.55,0.65,0.65,0.65,high_press_direct,,2026-06-18
+Senegal,4-3-3,0.65,0.50,0.70,0.60,0.55,0.65,0.60,0.75,athletic_pressing,,2026-06-18
+South Africa,4-4-2,0.55,0.40,0.60,0.65,0.45,0.55,0.50,0.60,direct_physical,,2026-06-18
+South Korea,4-3-3,0.70,0.55,0.70,0.55,0.60,0.65,0.55,0.75,high_press_technical,,2026-06-18
+Spain,4-3-3,0.80,0.65,0.75,0.30,0.85,0.65,0.60,0.55,possession_tiki_taka,,2026-06-18
+Sweden,4-2-3-1,0.60,0.50,0.60,0.60,0.55,0.60,0.65,0.60,organised_balanced,,2026-06-18
+Switzerland,3-4-3,0.65,0.50,0.65,0.55,0.55,0.70,0.60,0.65,high_press_wide,,2026-06-18
+Tunisia,4-3-3,0.55,0.40,0.60,0.60,0.45,0.55,0.50,0.60,defensive_organised,,2026-06-18
+Turkiye,4-2-3-1,0.60,0.45,0.65,0.60,0.50,0.65,0.60,0.70,transition_direct,,2026-06-18
+United States,4-3-3,0.70,0.55,0.70,0.55,0.55,0.65,0.60,0.70,high_press_athletic,,2026-06-18
+Uruguay,4-4-2,0.60,0.45,0.60,0.65,0.50,0.55,0.65,0.65,physical_direct,,2026-06-18
+Uzbekistan,4-3-3,0.55,0.45,0.60,0.60,0.50,0.55,0.50,0.60,organised_balanced,,2026-06-18

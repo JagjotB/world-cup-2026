@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 
 from worldcup2026.player_projections import (
+    add_match_team_projection_totals,
     project_player_match_performances,
     summarize_team_player_projections,
 )
@@ -106,3 +107,79 @@ def test_projection_summaries_create_model_ready_team_features():
     assert home["projection_minutes_total"] > 700
     assert home["projection_goal_threat"] > 0
     assert home["projection_balance_score"] > 0
+
+
+def test_match_team_projection_totals_add_more_shots_on_target_pick():
+    matches = pd.DataFrame(
+        [
+            {
+                "match_number": 1,
+                "group": "A",
+                "local_date": "2026-06-18",
+                "local_time": "12:00",
+                "home_team": "Home",
+                "away_team": "Away",
+                "expected_home_goals": 2.0,
+                "expected_away_goals": 0.8,
+                "p_home_win": 0.75,
+                "p_draw": 0.15,
+                "p_away_win": 0.10,
+            }
+        ]
+    )
+    projections = pd.DataFrame(
+        [
+            {
+                "match_number": 1,
+                "group": "A",
+                "local_date": "2026-06-18",
+                "local_time": "12:00",
+                "home_team": "Home",
+                "away_team": "Away",
+                "team": "Home",
+                "projected_shots": 7.5,
+                "projected_shots_on_target": 1.25,
+            },
+            {
+                "match_number": 1,
+                "group": "A",
+                "local_date": "2026-06-18",
+                "local_time": "12:00",
+                "home_team": "Home",
+                "away_team": "Away",
+                "team": "Home",
+                "projected_shots": 2.5,
+                "projected_shots_on_target": 0.75,
+            },
+            {
+                "match_number": 1,
+                "group": "A",
+                "local_date": "2026-06-18",
+                "local_time": "12:00",
+                "home_team": "Home",
+                "away_team": "Away",
+                "team": "Away",
+                "projected_shots": 4.0,
+                "projected_shots_on_target": 1.1,
+            },
+        ]
+    )
+
+    enriched = add_match_team_projection_totals(matches, projections)
+    row = enriched.iloc[0]
+
+    assert row["projected_home_shots_on_target"] == pytest.approx(2.0)
+    assert row["projected_away_shots_on_target"] == pytest.approx(1.1)
+    assert row["projected_sot_edge"] == pytest.approx(0.9)
+    assert row["projected_more_shots_on_target"] == "Home"
+    assert bool(row["more_shots_on_target_useful"]) is True
+    assert row["more_shots_on_target_strength"] == "useful"
+    assert row["projected_home_shots"] == pytest.approx(10.0)
+    assert row["projected_away_shots"] == pytest.approx(4.0)
+    assert row["projected_home_corners"] > row["projected_away_corners"]
+    assert 0.0 <= row["p_home_1plus_corners_each_half"] <= 1.0
+    assert 0.0 <= row["p_away_1plus_corners_each_half"] <= 1.0
+    assert bool(row["home_1plus_corners_each_half_pick"]) is True
+    assert bool(row["away_1plus_corners_each_half_pick"]) is False
+    assert row["home_1plus_corners_each_half_useful_pick"] == "Yes"
+    assert row["away_1plus_corners_each_half_useful_pick"] == "No"

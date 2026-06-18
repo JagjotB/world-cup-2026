@@ -42,6 +42,8 @@ from .features import (
     build_training_frame,
 )
 from .model import MatchModelArtifact, save_artifact
+from .squad_graph import build_team_gnn_lookup
+from .tactical_embeddings import fit_style_clusters, load_style_vectors
 
 
 RESULT_LABELS = ["A", "D", "H"]
@@ -185,6 +187,43 @@ def poisson_result_probabilities(
     p_away = score_grid[:, away_win_mask].sum(axis=1)
     p_draw = score_grid[:, draw_mask].sum(axis=1)
     return normalized_probabilities(np.column_stack([p_away, p_draw, p_home]))
+
+
+def blend_with_poisson_draw_probability(
+    probabilities: np.ndarray,
+    home_lambdas: np.ndarray,
+    away_lambdas: np.ndarray,
+    labels: list[str] | np.ndarray = RESULT_LABELS,
+    draw_blend_weight: float = 0.0,
+) -> np.ndarray:
+    probabilities = normalized_probabilities(probabilities)
+    weight = float(np.clip(draw_blend_weight, 0.0, 1.0))
+    if weight <= 0.0:
+        return probabilities
+
+    labels = [str(label) for label in labels]
+    if not {"A", "D", "H"}.issubset(labels):
+        return probabilities
+
+    away_idx = labels.index("A")
+    draw_idx = labels.index("D")
+    home_idx = labels.index("H")
+    poisson_probs = poisson_result_probabilities(home_lambdas, away_lambdas)
+    poisson_draw = poisson_probs[:, RESULT_LABELS.index("D")]
+    blended_draw = weight * poisson_draw + (1.0 - weight) * probabilities[:, draw_idx]
+    blended_draw = np.clip(blended_draw, PROBABILITY_FLOOR, 1.0 - PROBABILITY_FLOOR)
+
+    non_draw_total = np.maximum(
+        probabilities[:, away_idx] + probabilities[:, home_idx],
+        PROBABILITY_FLOOR,
+    )
+    non_draw_scale = (1.0 - blended_draw) / non_draw_total
+
+    output = probabilities.copy()
+    output[:, draw_idx] = blended_draw
+    output[:, away_idx] = probabilities[:, away_idx] * non_draw_scale
+    output[:, home_idx] = probabilities[:, home_idx] * non_draw_scale
+    return normalized_probabilities(output)
 
 
 @dataclass
@@ -656,6 +695,71 @@ def fit_and_evaluate_candidate(
         return None, {"model_architecture": name, "status": "failed", "error": str(exc)}
 
 
+def select_draw_blend_weight(
+    architecture: str,
+    classifier: Any,
+    x_train: pd.DataFrame,
+    x_test: pd.DataFrame,
+    y_train: pd.Series,
+    y_test: pd.Series,
+    home_goal_model: Any,
+    away_goal_model: Any,
+    weights: tuple[float, ...] = tuple(np.linspace(0.0, 1.0, 11)),
+) -> tuple[float, dict[str, Any], dict[str, Any]]:
+    source_labels = [str(label) for label in getattr(classifier, "classes_", RESULT_LABELS)]
+    train_probs = align_probabilities(classifier.predict_proba(x_train), source_labels, RESULT_LABELS)
+    test_probs = align_probabilities(classifier.predict_proba(x_test), source_labels, RESULT_LABELS)
+    home_train = np.clip(home_goal_model.predict(x_train), 0.15, 5.5)
+    away_train = np.clip(away_goal_model.predict(x_train), 0.15, 5.5)
+    home_test = np.clip(home_goal_model.predict(x_test), 0.15, 5.5)
+    away_test = np.clip(away_goal_model.predict(x_test), 0.15, 5.5)
+
+    candidate_metrics: dict[str, Any] = {}
+    best_weight = 0.0
+    best_metrics: dict[str, Any] | None = None
+    for weight in weights:
+        blended_train = blend_with_poisson_draw_probability(
+            train_probs,
+            home_train,
+            away_train,
+            draw_blend_weight=float(weight),
+        )
+        blended_test = blend_with_poisson_draw_probability(
+            test_probs,
+            home_test,
+            away_test,
+            draw_blend_weight=float(weight),
+        )
+        policy = tune_decision_policy(blended_train, y_train, list(RESULT_LABELS))
+        metrics = evaluate_result_model(
+            architecture,
+            blended_test,
+            list(RESULT_LABELS),
+            y_test,
+            policy,
+        )
+        metrics["draw_blend_weight"] = float(weight)
+        metrics["train_log_loss"] = float(log_loss(y_train, blended_train, labels=list(RESULT_LABELS)))
+        metrics["train_raw_top_accuracy"] = float(
+            accuracy_score(y_train, np.array(RESULT_LABELS)[blended_train.argmax(axis=1)])
+        )
+        key = f"{weight:.1f}"
+        candidate_metrics[key] = metrics
+        if best_metrics is None or (
+            metrics["test_accuracy"],
+            -metrics["test_log_loss"],
+        ) > (
+            best_metrics["test_accuracy"],
+            -best_metrics["test_log_loss"],
+        ):
+            best_weight = float(weight)
+            best_metrics = metrics
+
+    if best_metrics is None:
+        raise ValueError("No draw-blend candidates evaluated.")
+    return best_weight, best_metrics, candidate_metrics
+
+
 def ensemble_weights(candidate_metrics: list[dict[str, Any]]) -> list[float]:
     raw_weights = []
     for metrics in candidate_metrics:
@@ -773,15 +877,24 @@ def train_match_model(
     if len(df) < 1000:
         raise ValueError("Not enough historical matches after filtering to train a model.")
 
-    frame, ratings, team_form = build_training_frame(df)
+    frame, ratings, team_form, team_uncertainties = build_training_frame(df)
     team_player_lookup = None
     team_player_defaults = None
+    style_vectors: dict = {}
+    style_clusters: dict = {}
+    gnn_lookup: dict = {}
     feature_columns = list(FEATURE_COLUMNS)
     if model_kind == "enhanced":
+        style_vectors = load_style_vectors()
+        style_clusters = fit_style_clusters(style_vectors) if style_vectors else {}
+        gnn_lookup = build_team_gnn_lookup()
         frame, team_player_lookup, team_player_defaults = add_team_player_features(
             frame,
             team_player_features,
             aliases=aliases,
+            style_vectors=style_vectors,
+            style_clusters=style_clusters,
+            gnn_lookup=gnn_lookup,
         )
         feature_columns = list(ENHANCED_FEATURE_COLUMNS)
 
@@ -816,6 +929,22 @@ def train_match_model(
         home_goal_model=home_goal_model,
         away_goal_model=away_goal_model,
     )
+    pre_draw_blend_metrics = dict(selected_metrics)
+    draw_blend_weight, blended_metrics, draw_blend_candidate_metrics = select_draw_blend_weight(
+        selected_architecture,
+        classifier,
+        x_train=x_train,
+        x_test=x_test,
+        y_train=y_train,
+        y_test=y_test,
+        home_goal_model=home_goal_model,
+        away_goal_model=away_goal_model,
+    )
+    selected_metrics = {
+        **blended_metrics,
+        "pre_draw_blend_metrics": pre_draw_blend_metrics,
+        "draw_blend_candidate_metrics": draw_blend_candidate_metrics,
+    }
     selected_policy = selected_metrics["decision_policy"]
 
     metrics = {
@@ -847,6 +976,7 @@ def train_match_model(
             "random_state": random_state,
             "model_architecture": selected_architecture,
             "selected_goal_model": selected_goal_model,
+            "draw_blend_weight": draw_blend_weight,
             "uses_static_2026_player_features": bool(model_kind == "enhanced"),
             "player_feature_caveat": (
                 "Enhanced model uses current 2026 squad/player features as static team "
@@ -860,6 +990,10 @@ def train_match_model(
         },
         team_player_feature_lookup=team_player_lookup,
         team_player_feature_defaults=team_player_defaults,
+        team_rating_uncertainties=team_uncertainties,
+        style_vectors=style_vectors or None,
+        style_clusters=style_clusters or None,
+        gnn_lookup=gnn_lookup or None,
     )
     return artifact, metrics
 
