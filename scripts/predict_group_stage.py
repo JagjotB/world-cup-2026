@@ -22,6 +22,7 @@ from worldcup2026.edge_features import (
     apply_edge_probability_adjustments,
     load_edge_context,
 )
+from worldcup2026.match_simulator import add_simulation_columns
 from worldcup2026.news_signals import add_news_signal_columns
 from worldcup2026.group_stage import (
     add_match_usefulness_filters,
@@ -113,6 +114,7 @@ def main() -> None:
     )
     predictions = add_match_usefulness_filters(predictions)
     predictions = add_news_signal_columns(predictions)
+    predictions = add_simulation_columns(predictions, predictor)
     predictions.to_csv(args.predictions_output, index=False)
 
     print(f"Wrote group-stage schedule: {args.schedule_output}")
@@ -166,6 +168,11 @@ def main() -> None:
             "news_morale_edge",
             "news_upset_risk",
             "news_signal_confidence",
+            "sim_p_home_win",
+            "sim_p_draw",
+            "sim_p_away_win",
+            "sim_top_scoreline",
+            "sim_top_scoreline_prob",
         ]
         available_preview_columns = [
             column for column in preview_columns if column in predictions.columns

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from pathlib import Path
 
 import pandas as pd
@@ -45,43 +44,66 @@ Return ONLY valid JSON, no other text."""
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 world-cup-2026 predictor research"}
 
 
-def _search_bbc_sport(home_team: str, away_team: str) -> str:
-    """Try to fetch BBC Sport match preview text."""
-    query = f"{home_team} {away_team} World Cup 2026"
-    try:
-        url = f"https://www.bbc.co.uk/sport/football/search?q={query.replace(' ', '+')}"
-        response = requests.get(url, headers=REQUEST_HEADERS, timeout=10)
-        if response.ok:
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(response.text, "html.parser")
-            paragraphs = [p.get_text(" ", strip=True) for p in soup.select("p")]
-            return " ".join(paragraphs[:30])
-    except Exception:
-        pass
-    return ""
+def _search_google_news_rss(home_team: str, away_team: str) -> str:
+    """Google News RSS — robot-friendly, returns article titles and snippets."""
+    import xml.etree.ElementTree as ET
+    queries = [
+        f"{home_team} {away_team} World Cup 2026",
+        f"{home_team} injury World Cup 2026",
+        f"{away_team} injury World Cup 2026",
+    ]
+    texts: list[str] = []
+    for query in queries:
+        try:
+            url = (
+                "https://news.google.com/rss/search"
+                f"?q={requests.utils.quote(query)}&hl=en-US&gl=US&ceid=US:en"
+            )
+            response = requests.get(url, headers=REQUEST_HEADERS, timeout=10)
+            if response.ok:
+                root = ET.fromstring(response.text)
+                for item in root.iter("item"):
+                    title = item.findtext("title") or ""
+                    desc = item.findtext("description") or ""
+                    if title:
+                        texts.append(title)
+                    if desc:
+                        from bs4 import BeautifulSoup
+                        texts.append(BeautifulSoup(desc, "html.parser").get_text(" ", strip=True))
+        except Exception:
+            pass
+    return " ".join(texts)
 
 
-def _search_google_news(home_team: str, away_team: str, date: str) -> str:
-    """Try to fetch Google News snippets for the match preview."""
-    query = f'"{home_team}" "{away_team}" World Cup preview {date}'
+def _search_bing_news(home_team: str, away_team: str) -> str:
+    """Bing News search — often less aggressive about blocking scrapers."""
+    query = f"{home_team} {away_team} World Cup 2026 injury preview"
     try:
-        url = f"https://news.google.com/search?q={requests.utils.quote(query)}&hl=en"
+        url = f"https://www.bing.com/news/search?q={requests.utils.quote(query)}&format=rss"
         response = requests.get(url, headers=REQUEST_HEADERS, timeout=10)
-        if response.ok:
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(response.text, "html.parser")
-            snippets = [a.get_text(" ", strip=True) for a in soup.select("article h3, article a")]
-            return " ".join(snippets[:40])
+        if response.ok and "<rss" in response.text:
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(response.text)
+            texts = []
+            for item in root.iter("item"):
+                title = item.findtext("title") or ""
+                desc = item.findtext("description") or ""
+                if title:
+                    texts.append(title)
+                if desc:
+                    from bs4 import BeautifulSoup
+                    texts.append(BeautifulSoup(desc, "html.parser").get_text(" ", strip=True))
+            return " ".join(texts)
     except Exception:
         pass
     return ""
 
 
 def fetch_match_news_text(home_team: str, away_team: str, date: str) -> str:
-    text = _search_bbc_sport(home_team, away_team)
+    text = _search_google_news_rss(home_team, away_team)
     if len(text) < 200:
-        text = _search_google_news(home_team, away_team, date)
-    return text[:4000]
+        text = _search_bing_news(home_team, away_team)
+    return text[:6000]
 
 
 def extract_signals_with_llm(
@@ -94,6 +116,9 @@ def extract_signals_with_llm(
 ) -> dict:
     api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
+        # Free fallback: keyword proximity matching — no API cost
+        if text.strip():
+            return extract_signals_with_keywords(home_team, away_team, text)
         return _default_signals()
 
     try:
@@ -117,6 +142,143 @@ def extract_signals_with_llm(
         return _normalise_signals(signals)
     except Exception:
         return _default_signals()
+
+
+_INJURY_KEYWORDS = [
+    "injured", "injury", "doubtful", "ruled out", "fitness doubt",
+    "fitness concern", "fitness test", "sidelined", "unavailable",
+    "won't play", "will not play", "misses out", "withdrawn",
+    "hamstring", "ankle injury", "knee injury", "calf injury",
+    "thigh injury", "groin injury", "muscle injury",
+    "limping", "substituted off injured",
+]
+_POSITIVE_KEYWORDS = [
+    "confident", "motivated", "in great form", "great form",
+    "unbeaten", "winning run", "momentum", "fired up", "raring to go",
+    "full strength", "all available", "good spirits",
+    "sharp", "clinical", "dominant", "impressive run",
+]
+_NEGATIVE_KEYWORDS = [
+    "under pressure", "poor form", "struggling",
+    "crisis", "disarray", "turmoil", "unhappy",
+    "frustration", "disappointing form", "no wins",
+]
+_FATIGUE_KEYWORDS = [
+    "tired", "fatigue", "tired legs", "heavy schedule",
+    "jet lag", "load management", "overworked",
+    "fourth game", "fifth game", "three games in",
+]
+_UPSET_KEYWORDS = [
+    "surprise", "shock result", "upset", "underdog",
+    "nothing to lose", "giant killing", "dark horse",
+]
+
+
+def _mentions(text_lower: str, team: str) -> list[int]:
+    """Character positions of all team name occurrences in text."""
+    positions: list[int] = []
+    term = team.lower()
+    pos = 0
+    while True:
+        idx = text_lower.find(term, pos)
+        if idx == -1:
+            break
+        positions.append(idx)
+        pos = idx + 1
+    return positions
+
+
+def _proximity_score(
+    text_lower: str,
+    positions: list[int],
+    keywords: list[str],
+    window: int = 250,
+) -> float:
+    """
+    Returns a 0-1 score based on how many distinct keywords appear
+    within *window* characters of any team name mention.
+    """
+    if not positions:
+        return 0.0
+    hit_keywords: set[str] = set()
+    for kw in keywords:
+        kw_pos = 0
+        while True:
+            idx = text_lower.find(kw, kw_pos)
+            if idx == -1:
+                break
+            if any(abs(idx - tp) <= window for tp in positions):
+                hit_keywords.add(kw)
+                break
+            kw_pos = idx + 1
+    return min(len(hit_keywords) / max(len(keywords) * 0.25, 1), 1.0)
+
+
+def extract_signals_with_keywords(
+    home_team: str,
+    away_team: str,
+    text: str,
+) -> dict:
+    """
+    Extract match signals from scraped news text using keyword proximity matching.
+    Free — no API key required.
+    """
+    tl = text.lower()
+    home_pos = _mentions(tl, home_team)
+    away_pos = _mentions(tl, away_team)
+
+    home_injury = _proximity_score(tl, home_pos, _INJURY_KEYWORDS)
+    away_injury = _proximity_score(tl, away_pos, _INJURY_KEYWORDS)
+    home_pos_s = _proximity_score(tl, home_pos, _POSITIVE_KEYWORDS)
+    away_pos_s = _proximity_score(tl, away_pos, _POSITIVE_KEYWORDS)
+    home_neg_s = _proximity_score(tl, home_pos, _NEGATIVE_KEYWORDS)
+    away_neg_s = _proximity_score(tl, away_pos, _NEGATIVE_KEYWORDS)
+    home_fatigue = _proximity_score(tl, home_pos, _FATIGUE_KEYWORDS)
+    away_fatigue = _proximity_score(tl, away_pos, _FATIGUE_KEYWORDS)
+
+    home_morale = float(max(0.0, min(1.0, 0.5 + 0.35 * home_pos_s - 0.35 * home_neg_s)))
+    away_morale = float(max(0.0, min(1.0, 0.5 + 0.35 * away_pos_s - 0.35 * away_neg_s)))
+
+    # Upset risk: direct upset keywords + away underdog having fewer injury concerns
+    upset_base = _proximity_score(tl, home_pos + away_pos, _UPSET_KEYWORDS)
+    upset_risk = float(min(upset_base * 1.4 + (away_injury > 0.3) * 0.15, 1.0))
+
+    # Narrative edge: which team has more positive proximal keywords
+    if home_pos_s > away_pos_s + 0.1:
+        narrative_edge = "home"
+    elif away_pos_s > home_pos_s + 0.1:
+        narrative_edge = "away"
+    else:
+        narrative_edge = "neutral"
+
+    # Confidence: driven by text length and how often teams are mentioned
+    total_mentions = len(home_pos) + len(away_pos)
+    confidence = float(min((total_mentions / 8) * (len(text) / 600), 1.0))
+
+    key_signals: list[str] = []
+    if home_injury > 0.25:
+        key_signals.append(f"{home_team} injury concerns")
+    if away_injury > 0.25:
+        key_signals.append(f"{away_team} injury concerns")
+    if narrative_edge != "neutral":
+        key_signals.append(f"Narrative favors {narrative_edge} team")
+    if upset_risk > 0.35:
+        key_signals.append("Upset possible")
+
+    return {
+        "home_injury_concern":   float(min(home_injury, 1.0)),
+        "away_injury_concern":   float(min(away_injury, 1.0)),
+        "home_morale":           home_morale,
+        "away_morale":           away_morale,
+        "home_fatigue":          float(min(home_fatigue, 1.0)),
+        "away_fatigue":          float(min(away_fatigue, 1.0)),
+        "home_manager_confidence": 0.5,
+        "away_manager_confidence": 0.5,
+        "narrative_edge":        narrative_edge,
+        "upset_risk":            upset_risk,
+        "confidence":            confidence,
+        "key_signals":           key_signals[:3],
+    }
 
 
 def _default_signals() -> dict:
@@ -160,16 +322,28 @@ def build_news_feature_row(signals: dict, home_team: str, away_team: str) -> dic
     return {
         "news_home_injury_concern": float(signals.get("home_injury_concern", 0.1)),
         "news_away_injury_concern": float(signals.get("away_injury_concern", 0.1)),
-        "news_injury_edge": float(signals.get("away_injury_concern", 0.1)) - float(signals.get("home_injury_concern", 0.1)),
+        "news_injury_edge": (
+            float(signals.get("away_injury_concern", 0.1))
+            - float(signals.get("home_injury_concern", 0.1))
+        ),
         "news_home_morale": float(signals.get("home_morale", 0.5)),
         "news_away_morale": float(signals.get("away_morale", 0.5)),
-        "news_morale_edge": float(signals.get("home_morale", 0.5)) - float(signals.get("away_morale", 0.5)),
+        "news_morale_edge": (
+            float(signals.get("home_morale", 0.5))
+            - float(signals.get("away_morale", 0.5))
+        ),
         "news_home_fatigue": float(signals.get("home_fatigue", 0.1)),
         "news_away_fatigue": float(signals.get("away_fatigue", 0.1)),
-        "news_fatigue_edge": float(signals.get("away_fatigue", 0.1)) - float(signals.get("home_fatigue", 0.1)),
+        "news_fatigue_edge": (
+            float(signals.get("away_fatigue", 0.1))
+            - float(signals.get("home_fatigue", 0.1))
+        ),
         "news_home_confidence": float(signals.get("home_manager_confidence", 0.5)),
         "news_away_confidence": float(signals.get("away_manager_confidence", 0.5)),
-        "news_confidence_edge": float(signals.get("home_manager_confidence", 0.5)) - float(signals.get("away_manager_confidence", 0.5)),
+        "news_confidence_edge": (
+            float(signals.get("home_manager_confidence", 0.5))
+            - float(signals.get("away_manager_confidence", 0.5))
+        ),
         "news_narrative_home": narrative_home,
         "news_narrative_away": narrative_away,
         "news_upset_risk": float(signals.get("upset_risk", 0.2)),
@@ -178,6 +352,7 @@ def build_news_feature_row(signals: dict, home_team: str, away_team: str) -> dic
 
 
 NEWS_FEATURE_COLUMNS = list(build_news_feature_row(_default_signals(), "", "").keys())
+
 
 def load_news_signals(path: Path | None = None) -> dict[tuple[str, str, str], dict]:
     """Load cached news signals keyed by (date, home_team, away_team)."""

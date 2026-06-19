@@ -1,0 +1,73 @@
+local_date,home_team,away_team,venue,city,temp_c,feels_like_c,precip_mm,humidity_pct,wind_kmh,weather_desc,first_half_mult,second_half_mult,weather_label
+2026-06-11,Mexico,South Africa,"Estadio Azteca , Mexico City",Mexico City,23.2,23.2,0.2,49.0,1.2,Clear,1.0,1.0,normal conditions
+2026-06-11,South Korea,Czechia,"Estadio Akron , Zapopan",Guadalajara,24.0,24.0,0.0,67.0,7.9,Clear,1.0,1.0,normal conditions
+2026-06-12,Canada,Bosnia and Herzegovina,"BMO Field , Toronto",Toronto,26.1,26.1,0.0,44.0,19.3,Clear,1.0,1.0,normal conditions
+2026-06-12,United States,Paraguay,"SoFi Stadium , Inglewood",Los Angeles,26.8,26.8,0.0,49.0,10.5,Clear,1.0,1.0,normal conditions
+2026-06-13,Qatar,Switzerland,"Levi's Stadium , Santa Clara",San Jose,27.9,27.9,0.0,37.0,7.0,Clear,1.0,1.0,normal conditions
+2026-06-13,Brazil,Morocco,"MetLife Stadium , East Rutherford",New York,31.9,31.9,0.0,26.0,8.7,Hot,1.0,0.93,hot 32C
+2026-06-13,Haiti,Scotland,"Gillette Stadium , Foxborough",Boston,27.7,27.7,0.0,36.0,2.4,Clear,1.0,1.0,normal conditions
+2026-06-13,Australia,Turkiye,"BC Place , Vancouver",Vancouver,22.5,22.5,0.0,46.0,11.6,Clear,1.0,1.0,normal conditions
+2026-06-14,Germany,Curacao,"NRG Stadium , Houston",Houston,29.6,29.6,0.4,72.0,13.1,Hot,1.0,0.93,hot 30C
+2026-06-14,Netherlands,Japan,"AT&T Stadium , Arlington",Dallas,28.5,28.5,0.0,69.0,12.1,Hot,1.0,0.93,hot 28C
+2026-06-14,Ivory Coast,Ecuador,"Lincoln Financial Field , Philadelphia",Philadelphia,28.5,28.5,0.0,46.0,17.6,Hot,1.0,0.93,hot 28C
+2026-06-14,Sweden,Tunisia,"Estadio BBVA , Guadalupe",Monterrey,25.5,25.5,0.2,85.0,4.4,Clear,1.0,0.96,high humidity 85%
+2026-06-15,Spain,Cape Verde,"Mercedes-Benz Stadium , Atlanta",Atlanta,26.1,26.1,0.0,54.0,11.2,Clear,1.0,1.0,normal conditions
+2026-06-15,Belgium,Egypt,"Lumen Field , Seattle",Seattle,27.5,27.5,0.0,38.0,1.8,Clear,1.0,1.0,normal conditions
+2026-06-15,Saudi Arabia,Uruguay,"Hard Rock Stadium , Miami Gardens",Miami,31.6,31.6,0.0,58.0,17.7,Hot,1.0,0.93,hot 32C
+2026-06-15,Iran,New Zealand,"SoFi Stadium , Inglewood",Los Angeles,24.2,24.2,0.0,53.0,10.7,Clear,1.0,1.0,normal conditions
+2026-06-16,France,Senegal,"MetLife Stadium , East Rutherford",New York,25.5,25.5,0.0,31.0,6.8,Clear,1.0,1.0,normal conditions
+2026-06-16,Iraq,Norway,"Gillette Stadium , Foxborough",Boston,26.5,26.5,0.0,23.0,4.5,Clear,1.0,1.0,normal conditions
+2026-06-16,Argentina,Algeria,"Arrowhead Stadium , Kansas City",Kansas City,25.1,25.1,0.0,53.0,3.1,Clear,1.0,1.0,normal conditions
+2026-06-16,Austria,Jordan,"Levi's Stadium , Santa Clara",San Jose,19.1,19.1,0.0,64.0,11.2,Clear,1.0,1.0,normal conditions
+2026-06-17,Portugal,DR Congo,"NRG Stadium , Houston",Houston,28.6,28.6,1.1,79.0,19.4,"Light rain, Hot",1.0,0.93,hot 29C
+2026-06-17,England,Croatia,"AT&T Stadium , Arlington",Dallas,32.2,32.2,0.0,53.0,21.7,Extreme heat,1.0,0.88,extreme heat 32C
+2026-06-17,Ghana,Panama,"BMO Field , Toronto",Toronto,18.5,18.5,0.2,75.0,12.9,Clear,1.0,1.0,normal conditions
+2026-06-17,Uzbekistan,Colombia,"Estadio Azteca , Mexico City",Mexico City,17.0,17.0,1.0,87.0,2.2,Light rain,1.0,1.0,normal conditions
+2026-06-18,Czechia,South Africa,"Mercedes-Benz Stadium , Atlanta",Atlanta,27.7,27.7,0.1,76.0,13.3,Clear,1.0,1.0,normal conditions
+2026-06-18,Switzerland,Bosnia and Herzegovina,"SoFi Stadium , Inglewood",Los Angeles,22.3,22.3,0.0,56.0,6.6,Clear,1.0,1.0,normal conditions
+2026-06-18,Canada,Qatar,"BC Place , Vancouver",Vancouver,20.9,20.9,0.0,53.0,17.5,Clear,1.0,1.0,normal conditions
+2026-06-18,Mexico,South Korea,"Estadio Akron , Zapopan",Guadalajara,22.0,22.0,0.7,78.0,8.1,Clear,1.0,1.0,normal conditions
+2026-06-19,United States,Australia,"Lumen Field , Seattle",Seattle,24.1,24.1,0.0,50.0,10.5,Clear,1.0,1.0,normal conditions
+2026-06-19,Scotland,Morocco,"Gillette Stadium , Foxborough",Boston,26.2,26.2,0.0,36.0,25.7,Windy,0.97,0.97,windy 26km/h
+2026-06-19,Brazil,Haiti,"Lincoln Financial Field , Philadelphia",Philadelphia,25.8,25.8,0.0,33.0,11.1,Clear,1.0,1.0,normal conditions
+2026-06-19,Turkiye,Paraguay,"Levi's Stadium , Santa Clara",San Jose,17.9,17.9,0.0,72.0,16.6,Clear,1.0,1.0,normal conditions
+2026-06-20,Netherlands,Sweden,"NRG Stadium , Houston",Houston,29.2,29.2,0.0,75.0,12.5,Hot,1.0,0.93,hot 29C
+2026-06-20,Germany,Ivory Coast,"BMO Field , Toronto",Toronto,22.9,22.9,0.0,38.0,17.7,Clear,1.0,1.0,normal conditions
+2026-06-20,Ecuador,Curacao,"Arrowhead Stadium , Kansas City",Kansas City,24.5,24.5,0.0,74.0,11.3,Clear,1.0,1.0,normal conditions
+2026-06-20,Tunisia,Japan,"Estadio BBVA , Guadalupe",Monterrey,24.3,24.3,0.0,76.0,9.6,Clear,1.0,1.0,normal conditions
+2026-06-21,Spain,Saudi Arabia,"Mercedes-Benz Stadium , Atlanta",Atlanta,28.6,28.6,0.3,44.0,3.2,Hot,1.0,0.93,hot 29C
+2026-06-21,Belgium,Iran,"SoFi Stadium , Inglewood",Los Angeles,24.5,24.5,0.0,41.0,12.0,Clear,1.0,1.0,normal conditions
+2026-06-21,Uruguay,Cape Verde,"Hard Rock Stadium , Miami Gardens",Miami,30.6,30.6,0.0,58.0,14.0,Hot,1.0,0.93,hot 31C
+2026-06-21,New Zealand,Egypt,"BC Place , Vancouver",Vancouver,23.4,23.4,0.0,39.0,11.2,Clear,1.0,1.0,normal conditions
+2026-06-22,Argentina,Austria,"AT&T Stadium , Arlington",Dallas,33.2,33.2,0.0,49.0,23.2,Extreme heat,1.0,0.88,extreme heat 33C
+2026-06-22,France,Iraq,"Lincoln Financial Field , Philadelphia",Philadelphia,19.5,19.5,0.8,94.0,13.6,Clear,1.0,1.0,normal conditions
+2026-06-22,Norway,Senegal,"MetLife Stadium , East Rutherford",New York,17.1,17.1,0.0,89.0,12.8,Clear,1.0,1.0,normal conditions
+2026-06-22,Jordan,Algeria,"Levi's Stadium , Santa Clara",San Jose,22.9,22.9,0.0,45.0,12.4,Clear,1.0,1.0,normal conditions
+2026-06-23,Portugal,Uzbekistan,"NRG Stadium , Houston",Houston,33.5,33.5,0.0,48.0,12.6,Extreme heat,1.0,0.88,extreme heat 34C
+2026-06-23,England,Ghana,"Gillette Stadium , Foxborough",Boston,18.2,18.2,0.0,73.0,13.8,Clear,1.0,1.0,normal conditions
+2026-06-23,Panama,Croatia,"BMO Field , Toronto",Toronto,19.6,19.6,0.0,60.0,7.0,Clear,1.0,1.0,normal conditions
+2026-06-23,Colombia,DR Congo,"Estadio Akron , Zapopan",Guadalajara,19.3,19.3,0.9,91.0,3.5,Clear,1.0,1.0,normal conditions
+2026-06-24,Switzerland,Canada,"BC Place , Vancouver",Vancouver,21.8,21.8,0.0,50.0,9.7,Clear,1.0,1.0,normal conditions
+2026-06-24,Bosnia and Herzegovina,Qatar,"Lumen Field , Seattle",Seattle,26.2,26.2,0.0,33.0,12.6,Clear,1.0,1.0,normal conditions
+2026-06-24,Scotland,Brazil,"Hard Rock Stadium , Miami Gardens",Miami,31.1,31.1,0.0,57.0,17.9,Hot,1.0,0.93,hot 31C
+2026-06-24,Morocco,Haiti,"Mercedes-Benz Stadium , Atlanta",Atlanta,28.1,28.1,0.0,54.0,16.1,Hot,1.0,0.93,hot 28C
+2026-06-24,Czechia,Mexico,"Estadio Azteca , Mexico City",Mexico City,16.3,16.3,0.9,85.0,5.8,Clear,1.0,1.0,normal conditions
+2026-06-24,South Africa,South Korea,"Estadio BBVA , Guadalupe",Monterrey,31.9,31.9,0.0,37.0,24.7,Hot,1.0,0.93,hot 32C
+2026-06-25,Curacao,Ivory Coast,"Lincoln Financial Field , Philadelphia",Philadelphia,28.6,28.6,0.0,34.0,15.5,Hot,1.0,0.93,hot 29C
+2026-06-25,Ecuador,Germany,"MetLife Stadium , East Rutherford",New York,25.7,25.7,0.0,60.0,16.5,Clear,1.0,1.0,normal conditions
+2026-06-25,Japan,Sweden,"AT&T Stadium , Arlington",Dallas,31.7,31.7,0.0,42.0,6.0,Hot,1.0,0.93,hot 32C
+2026-06-25,Tunisia,Netherlands,"Arrowhead Stadium , Kansas City",Kansas City,24.6,24.6,0.0,63.0,4.5,Clear,1.0,1.0,normal conditions
+2026-06-25,Turkiye,United States,"SoFi Stadium , Inglewood",Los Angeles,26.4,26.4,0.0,37.0,14.8,Clear,1.0,1.0,normal conditions
+2026-06-25,Paraguay,Australia,"Levi's Stadium , Santa Clara",San Jose,30.6,30.6,0.0,24.0,10.7,Hot,1.0,0.93,hot 31C
+2026-06-26,Norway,France,"Gillette Stadium , Foxborough",Boston,23.1,23.1,0.0,57.0,8.9,Clear,1.0,1.0,normal conditions
+2026-06-26,Senegal,Iraq,"BMO Field , Toronto",Toronto,23.9,23.9,0.0,41.0,17.3,Clear,1.0,1.0,normal conditions
+2026-06-26,Cape Verde,Saudi Arabia,"NRG Stadium , Houston",Houston,32.3,32.3,0.0,53.0,22.4,Extreme heat,1.0,0.88,extreme heat 32C
+2026-06-26,Uruguay,Spain,"Estadio Akron , Zapopan",Guadalajara,22.2,22.2,0.4,73.0,5.4,Clear,1.0,1.0,normal conditions
+2026-06-26,Egypt,Iran,"Lumen Field , Seattle",Seattle,17.3,17.3,0.0,52.0,10.1,Clear,1.0,1.0,normal conditions
+2026-06-26,New Zealand,Belgium,"BC Place , Vancouver",Vancouver,16.4,16.4,0.0,56.0,9.2,Clear,1.0,1.0,normal conditions
+2026-06-27,Panama,England,"MetLife Stadium , East Rutherford",New York,25.5,25.5,0.0,54.0,13.8,Clear,1.0,1.0,normal conditions
+2026-06-27,Croatia,Ghana,"Lincoln Financial Field , Philadelphia",Philadelphia,28.9,28.9,0.0,39.0,13.5,Hot,1.0,0.93,hot 29C
+2026-06-27,Colombia,Portugal,"Hard Rock Stadium , Miami Gardens",Miami,30.3,30.3,0.0,64.0,17.4,Hot,1.0,0.93,hot 30C
+2026-06-27,DR Congo,Uzbekistan,"Mercedes-Benz Stadium , Atlanta",Atlanta,32.7,32.7,0.0,39.0,10.9,Extreme heat,1.0,0.88,extreme heat 33C
+2026-06-27,Algeria,Austria,"Arrowhead Stadium , Kansas City",Kansas City,27.3,27.3,0.0,85.0,5.5,Clear,1.0,0.96,high humidity 85%
+2026-06-27,Jordan,Argentina,"AT&T Stadium , Arlington",Dallas,32.8,32.8,0.0,45.0,25.0,"Extreme heat, Windy",0.97,0.8536,"extreme heat 33C, windy 25km/h"
