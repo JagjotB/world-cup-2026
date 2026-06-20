@@ -74,6 +74,21 @@ def result_label(h, a):
     return "D"
 
 
+def draw_plus_pick(p_home: float, p_away: float, home: str, away: str):
+    """Double-chance "favourite or Draw" pick (Draw+).
+
+    Backs the stronger side to win or draw. Wrong only when the
+    underdog wins. Returns (side, label) where side is "H" or "A".
+    """
+    if p_home >= p_away:
+        return "H", f"{home} or Draw"
+    return "A", f"{away} or Draw"
+
+
+def draw_plus_correct(side: str, actual: str) -> bool:
+    return actual == "D" or actual == side
+
+
 def prob_bar(p: float, color: str = "#1f77b4") -> str:
     pct = int(p * 100)
     return f"""
@@ -105,33 +120,28 @@ if not played.empty:
     played["home_score"] = pd.to_numeric(played["home_score"], errors="coerce")
     played["away_score"] = pd.to_numeric(played["away_score"], errors="coerce")
 
-    correct = total = 0
+    correct = dp_correct = total = 0
     for r in played.itertuples(index=False):
         try:
             pred = predictor.predict_match(r.home_team, r.away_team, neutral=True)
-            dec = predictor.decision_for_prediction(pred)
             actual = result_label(r.home_score, r.away_score)
-            rec = dec.recommended_result
-            if rec == r.home_team or rec == "H":
-                predicted = "H"
-            elif rec == r.away_team or rec == "A":
-                predicted = "A"
-            else:
-                predicted = "D"
             # Draw-aware sim rule
             sims = run_simulations(r.home_team, r.away_team, pred.expected_home_goals, pred.expected_away_goals, n=5000, seed=42)
             probs = outcome_probabilities(sims)
             predicted = sim_predict_result(probs, pred.expected_home_goals, pred.expected_away_goals)
+            dp_side, _ = draw_plus_pick(probs["H"], probs["A"], r.home_team, r.away_team)
             correct += int(predicted == actual)
+            dp_correct += int(draw_plus_correct(dp_side, actual))
             total += 1
         except Exception:
             pass
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Matches Played", total)
     c2.metric("Correct Predictions", correct)
     c3.metric("Accuracy", f"{correct/total:.1%}" if total else "—")
-    c4.metric("Remaining", len(upcoming))
+    c4.metric("Draw+ Accuracy", f"{dp_correct/total:.1%}" if total else "—", help="Double-chance: favourite to win or draw")
+    c5.metric("Remaining", len(upcoming))
     st.divider()
 
 # ---------------------------------------------------------------------------
@@ -163,6 +173,7 @@ with tab_today:
                 sims = run_simulations(home, away, pred.expected_home_goals, pred.expected_away_goals, n=10000, seed=42)
                 probs = outcome_probabilities(sims)
                 pick = sim_predict_result(probs, pred.expected_home_goals, pred.expected_away_goals)
+                dp_side, dp_label = draw_plus_pick(probs["H"], probs["A"], home, away)
                 top_scorelines = scoreline_distribution(sims, top_n=5)
 
                 with st.container(border=True):
@@ -179,11 +190,14 @@ with tab_today:
                             actual = result_label(row.home_score, row.away_score)
                             correct_pick = pick == actual
                             badge = "✅" if correct_pick else "❌"
+                            dp_badge = "✅" if draw_plus_correct(dp_side, actual) else "❌"
                             st.markdown(f"<p style='text-align:center'>{badge} Predicted: **{pick}**</p>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='text-align:center'>{dp_badge} Draw+: <b>{dp_label}</b></p>", unsafe_allow_html=True)
                         else:
                             st.markdown(f"<h3 style='text-align:center'>vs</h3>", unsafe_allow_html=True)
                             pick_label = home if pick == "H" else (away if pick == "A" else "Draw")
                             st.markdown(f"<p style='text-align:center'>Pick: <b>{pick_label}</b></p>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='text-align:center'>Draw+: <b>{dp_label}</b></p>", unsafe_allow_html=True)
 
                         cols = st.columns(3)
                         cols[0].markdown(prob_bar(probs["H"], "#2196F3"), unsafe_allow_html=True)
@@ -221,10 +235,16 @@ with tab_upcoming:
 
         df_show = df_show[df_show["local_date"] >= TODAY].copy()
 
+        if {"p_home_win", "p_away_win"}.issubset(df_show.columns):
+            df_show["draw_plus"] = [
+                draw_plus_pick(float(r.p_home_win), float(r.p_away_win), str(r.home_team), str(r.away_team))[1]
+                for r in df_show.itertuples(index=False)
+            ]
+
         cols_display = [
             "local_date", "local_time", "group",
             "home_team", "away_team",
-            "predicted_result",
+            "predicted_result", "draw_plus",
             "p_home_win", "p_draw", "p_away_win",
             "expected_home_goals", "expected_away_goals",
             "sim_top_scoreline", "sim_top_scoreline_prob",
@@ -235,7 +255,7 @@ with tab_upcoming:
         rename = {
             "local_date": "Date", "local_time": "Time", "group": "Grp",
             "home_team": "Home", "away_team": "Away",
-            "predicted_result": "Pick",
+            "predicted_result": "Pick", "draw_plus": "Draw+",
             "p_home_win": "P(H)", "p_draw": "P(D)", "p_away_win": "P(A)",
             "expected_home_goals": "xG(H)", "expected_away_goals": "xG(A)",
             "sim_top_scoreline": "Top Score", "sim_top_scoreline_prob": "Score%",
@@ -265,6 +285,9 @@ with tab_played:
             probs = outcome_probabilities(sims)
             predicted = sim_predict_result(probs, pred.expected_home_goals, pred.expected_away_goals)
             actual = result_label(r.home_score, r.away_score)
+            dp_side, dp_label = draw_plus_pick(probs["H"], probs["A"], r.home_team, r.away_team)
+            dp_ok = draw_plus_correct(dp_side, actual)
+            dp_implied = max(probs["H"], probs["A"]) + probs["D"]
             rows.append({
                 "Date": r.local_date,
                 "Home": r.home_team,
@@ -273,6 +296,9 @@ with tab_played:
                 "Actual": actual,
                 "Predicted": predicted,
                 "Result": "✅" if predicted == actual else "❌",
+                "Draw+": dp_label,
+                "Draw+ ✓": "✅" if dp_ok else "❌",
+                "Draw+ P": dp_implied,
                 "P(H)": f"{probs['H']:.0%}",
                 "P(D)": f"{probs['D']:.0%}",
                 "P(A)": f"{probs['A']:.0%}",
@@ -283,12 +309,24 @@ with tab_played:
     if rows:
         df_played = pd.DataFrame(rows)
         correct = (df_played["Result"] == "✅").sum()
+        dp_correct = (df_played["Draw+ ✓"] == "✅").sum()
         total = len(df_played)
+        dp_realized = dp_correct / total
+        dp_implied_avg = df_played["Draw+ P"].mean()
 
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Correct", f"{correct}/{total}")
         c2.metric("Accuracy", f"{correct/total:.1%}")
-        c3.metric("Wrong", f"{total - correct}/{total}")
+        c3.metric("Draw+ Accuracy", f"{dp_realized:.1%}", help="Favourite to win or draw")
+        c4.metric(
+            "Draw+ Implied",
+            f"{dp_implied_avg:.1%}",
+            delta=f"{dp_realized - dp_implied_avg:+.1%} edge",
+            help="Avg model probability for the Draw+ pick. The delta is realized minus implied — positive means Draw+ is beating its break-even baseline.",
+        )
+        c5.metric("Wrong", f"{total - correct}/{total}")
+
+        df_played["Draw+ P"] = df_played["Draw+ P"].apply(lambda x: f"{x:.0%}")
 
         st.dataframe(df_played, use_container_width=True, hide_index=True)
 
