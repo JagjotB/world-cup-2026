@@ -118,6 +118,15 @@ def main() -> None:
         if not schedule_results.empty:
             live_results_applied = apply_played_results_to_predictor(predictor, schedule_results)
             actual_results = pd.concat([actual_results, schedule_results], ignore_index=True)
+            if not actual_results.empty:
+                # Schedule results are the live source of truth; drop any manual-log
+                # rows for the same match so played results are not double-counted.
+                match_key = (
+                    actual_results["group"].astype(str).str.upper().str.strip()
+                    + "|" + actual_results["home_team"].map(normalized_key)
+                    + "|" + actual_results["away_team"].map(normalized_key)
+                )
+                actual_results = actual_results[~match_key.duplicated(keep="last")].reset_index(drop=True)
 
     group_predictions = predict_group_match_probabilities(predictor, teams)
     group_predictions = add_schedule_context(group_predictions, schedule)
