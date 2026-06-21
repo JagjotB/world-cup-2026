@@ -5,12 +5,13 @@ Run: streamlit run dashboard.py
 from __future__ import annotations
 
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+from streamlit.components.v1 import html as components_html
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -45,8 +46,18 @@ TODAY = date.today().isoformat()
 # Load data (cached)
 # ---------------------------------------------------------------------------
 
+def _mtime(path: Path) -> float:
+    """File modification time, used as a cache key so the dashboard
+    reloads automatically whenever the auto-updater rewrites a file."""
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+# Cache keys include the schedule mtime so live results re-apply after each update.
 @st.cache_resource(show_spinner="Loading model...")
-def load_predictor():
+def load_predictor(schedule_mtime: float):
     predictor = MatchPredictor.load(MODEL_FILE)
     schedule = pd.read_csv(GROUP_STAGE_SCHEDULE_FILE)
     results = played_schedule_results(schedule)
@@ -54,13 +65,13 @@ def load_predictor():
     return predictor
 
 
-@st.cache_data(ttl=300, show_spinner="Loading schedule...")
-def load_schedule():
+@st.cache_data(show_spinner="Loading schedule...")
+def load_schedule(schedule_mtime: float):
     return pd.read_csv(GROUP_STAGE_SCHEDULE_FILE)
 
 
-@st.cache_data(ttl=300, show_spinner="Loading predictions...")
-def load_predictions():
+@st.cache_data(show_spinner="Loading predictions...")
+def load_predictions(predictions_mtime: float):
     if UPCOMING_GROUP_STAGE_PREDICTIONS_FILE.exists():
         return pd.read_csv(UPCOMING_GROUP_STAGE_PREDICTIONS_FILE)
     return pd.DataFrame()
@@ -105,9 +116,24 @@ def prob_bar(p: float, color: str = "#1f77b4") -> str:
 st.title("⚽ FIFA World Cup 2026")
 st.caption(f"Predictions powered by XGBoost + Poisson simulation · Updated {TODAY}")
 
-predictor = load_predictor()
-schedule = load_schedule()
-predictions = load_predictions()
+with st.sidebar:
+    st.header("Live updates")
+    auto_refresh = st.checkbox("Auto-refresh", value=True, help="Reload automatically to pick up new results.")
+    refresh_secs = st.select_slider("Every", options=[30, 60, 120, 300, 600], value=60)
+
+schedule_mtime = _mtime(GROUP_STAGE_SCHEDULE_FILE)
+predictions_mtime = _mtime(UPCOMING_GROUP_STAGE_PREDICTIONS_FILE)
+
+predictor = load_predictor(schedule_mtime)
+schedule = load_schedule(schedule_mtime)
+predictions = load_predictions(predictions_mtime)
+
+if auto_refresh:
+    components_html(
+        f"<script>setTimeout(function(){{window.parent.location.reload();}}, {int(refresh_secs) * 1000});</script>",
+        height=0,
+    )
+    st.sidebar.caption(f"Last loaded {datetime.now().strftime('%H:%M:%S')} · refreshing every {refresh_secs}s")
 
 played = schedule[schedule["status"] == "played"].copy()
 upcoming = schedule[schedule["status"] != "played"].copy()
