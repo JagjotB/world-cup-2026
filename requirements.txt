@@ -10,4 +10,5 @@ soccerdata>=1.9
 kagglehub>=0.3
 beautifulsoup4>=4.12
 requests>=2.31
+streamlit>=1.36
 pytest>=8.0

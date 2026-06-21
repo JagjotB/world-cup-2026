@@ -4,7 +4,9 @@ Run: streamlit run dashboard.py
 """
 from __future__ import annotations
 
+import os
 import sys
+import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -21,6 +23,7 @@ from worldcup2026.config import (
     MODEL_FILE,
     UPCOMING_GROUP_STAGE_PREDICTIONS_FILE,
 )
+from worldcup2026.group_stage import fetch_group_stage_schedule
 from worldcup2026.live import apply_played_results_to_predictor, played_schedule_results
 from worldcup2026.match_simulator import (
     outcome_probabilities,
@@ -29,6 +32,16 @@ from worldcup2026.match_simulator import (
     sim_predict_result,
 )
 from worldcup2026.model import MatchPredictor
+
+# When deployed (e.g. Streamlit Community Cloud) the precomputed CSVs are not in
+# the repo, so the app scrapes the schedule live and rebuilds predictions in
+# process. Locally it reads the files the scheduled auto-updater maintains.
+# Force live mode anywhere by setting WC_LIVE_FETCH=1.
+LIVE_TTL = 900  # seconds between live re-fetches
+LIVE_FETCH = (
+    os.environ.get("WC_LIVE_FETCH", "").strip().lower() in {"1", "true", "yes"}
+    or not GROUP_STAGE_SCHEDULE_FILE.exists()
+)
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -55,26 +68,71 @@ def _mtime(path: Path) -> float:
         return 0.0
 
 
-# Cache keys include the schedule mtime so live results re-apply after each update.
-@st.cache_resource(show_spinner="Loading model...")
-def load_predictor(schedule_mtime: float):
-    predictor = MatchPredictor.load(MODEL_FILE)
-    schedule = pd.read_csv(GROUP_STAGE_SCHEDULE_FILE)
-    results = played_schedule_results(schedule)
-    apply_played_results_to_predictor(predictor, results)
-    return predictor
+def _data_key(path: Path) -> float:
+    """Cache key. Locally: file mtime (busts when the auto-updater rewrites a
+    file). Live mode: a time bucket so caches refresh every LIVE_TTL seconds."""
+    if LIVE_FETCH:
+        return float(int(time.time() // LIVE_TTL))
+    return _mtime(path)
 
 
-@st.cache_data(show_spinner="Loading schedule...")
-def load_schedule(schedule_mtime: float):
+def _read_schedule() -> pd.DataFrame:
+    if LIVE_FETCH or not GROUP_STAGE_SCHEDULE_FILE.exists():
+        return fetch_group_stage_schedule()
     return pd.read_csv(GROUP_STAGE_SCHEDULE_FILE)
 
 
-@st.cache_data(show_spinner="Loading predictions...")
-def load_predictions(predictions_mtime: float):
-    if UPCOMING_GROUP_STAGE_PREDICTIONS_FILE.exists():
+# Cache key drives refresh: schedule mtime locally, time bucket in live mode,
+# so live results re-apply after each update.
+@st.cache_resource(show_spinner="Loading model...")
+def load_predictor(cache_key: float):
+    predictor = MatchPredictor.load(MODEL_FILE)
+    apply_played_results_to_predictor(predictor, played_schedule_results(_read_schedule()))
+    return predictor
+
+
+@st.cache_data(ttl=LIVE_TTL, show_spinner="Loading schedule...")
+def load_schedule(cache_key: float):
+    return _read_schedule()
+
+
+@st.cache_data(ttl=LIVE_TTL, show_spinner="Loading predictions...")
+def load_predictions(cache_key: float):
+    if not LIVE_FETCH and UPCOMING_GROUP_STAGE_PREDICTIONS_FILE.exists():
         return pd.read_csv(UPCOMING_GROUP_STAGE_PREDICTIONS_FILE)
     return pd.DataFrame()
+
+
+def build_predictions(predictor, schedule: pd.DataFrame, from_date: str) -> pd.DataFrame:
+    """Lightweight in-app predictions for the Upcoming tab when the precomputed
+    CSV is unavailable (e.g. on Streamlit Cloud). Uses model probabilities only
+    — no edge/news/simulation columns."""
+    upcoming = schedule[schedule["status"] != "played"].copy()
+    if "local_date" in upcoming.columns:
+        upcoming = upcoming[upcoming["local_date"].astype(str) >= from_date]
+    rows = []
+    for r in upcoming.itertuples(index=False):
+        try:
+            pred = predictor.predict_match(r.home_team, r.away_team, neutral=True)
+        except Exception:
+            continue
+        probs = {"H": pred.p_home_win, "D": pred.p_draw, "A": pred.p_away_win}
+        side = max(probs, key=probs.get)
+        pick = r.home_team if side == "H" else (r.away_team if side == "A" else "Draw")
+        rows.append({
+            "local_date": r.local_date,
+            "local_time": r.local_time,
+            "group": r.group,
+            "home_team": r.home_team,
+            "away_team": r.away_team,
+            "predicted_result": pick,
+            "p_home_win": pred.p_home_win,
+            "p_draw": pred.p_draw,
+            "p_away_win": pred.p_away_win,
+            "expected_home_goals": pred.expected_home_goals,
+            "expected_away_goals": pred.expected_away_goals,
+        })
+    return pd.DataFrame(rows)
 
 
 def result_label(h, a):
@@ -121,12 +179,21 @@ with st.sidebar:
     auto_refresh = st.checkbox("Auto-refresh", value=True, help="Reload automatically to pick up new results.")
     refresh_secs = st.select_slider("Every", options=[30, 60, 120, 300, 600], value=60)
 
-schedule_mtime = _mtime(GROUP_STAGE_SCHEDULE_FILE)
-predictions_mtime = _mtime(UPCOMING_GROUP_STAGE_PREDICTIONS_FILE)
+if not MODEL_FILE.exists():
+    st.error(
+        f"Model file not found at {MODEL_FILE}. Commit the trained model "
+        "(models/world_cup_match_model.joblib) so the deployed app can load it."
+    )
+    st.stop()
 
-predictor = load_predictor(schedule_mtime)
-schedule = load_schedule(schedule_mtime)
-predictions = load_predictions(predictions_mtime)
+sched_key = _data_key(GROUP_STAGE_SCHEDULE_FILE)
+pred_key = _data_key(UPCOMING_GROUP_STAGE_PREDICTIONS_FILE)
+
+schedule = load_schedule(sched_key)
+predictor = load_predictor(sched_key)
+predictions = load_predictions(pred_key)
+if predictions.empty:
+    predictions = build_predictions(predictor, schedule, TODAY)
 
 if auto_refresh:
     components_html(

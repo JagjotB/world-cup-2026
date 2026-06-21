@@ -1,0 +1,278 @@
+{
+  "model_kind": "enhanced",
+  "model_architecture": "poisson_goal_outcome",
+  "status": "trained",
+  "test_accuracy": 0.6068258039060959,
+  "test_log_loss": 0.8665312669419726,
+  "test_actual_draw_rate": 0.22864470309725785,
+  "test_predicted_draw_rate": 0.006904714933912014,
+  "test_raw_top_draw_rate": 0.0,
+  "test_raw_top_accuracy": 0.6062339711974748,
+  "decision_policy": {
+    "draw_min_probability": 0.22,
+    "draw_margin_over_team": 0.0,
+    "draw_promote_threshold": 0.3,
+    "draw_promote_margin": 0.08,
+    "low_confidence_probability": 0.45,
+    "medium_confidence_probability": 0.55,
+    "low_confidence_margin": 0.06,
+    "medium_confidence_margin": 0.12,
+    "training_policy_accuracy": 0.5828647528854691,
+    "training_policy_draw_rate_gap": 0.23064022886455557
+  },
+  "train_log_loss": 0.8911532640360941,
+  "train_raw_top_accuracy": 0.5824701588241097,
+  "selected_goal_model": "xgboost_goals",
+  "matches_total": 25343.0,
+  "matches_train": 20274.0,
+  "matches_test": 5069.0,
+  "candidate_metrics": {
+    "logistic_multiclass": {
+      "model_architecture": "logistic_multiclass",
+      "status": "trained",
+      "test_accuracy": 0.6009074768198855,
+      "test_log_loss": 0.8693116464935056,
+      "test_actual_draw_rate": 0.22864470309725785,
+      "test_predicted_draw_rate": 0.01814953639771158,
+      "test_raw_top_draw_rate": 0.02840797001380943,
+      "test_raw_top_accuracy": 0.5997238114026435,
+      "decision_policy": {
+        "draw_min_probability": 0.39588235294117646,
+        "draw_margin_over_team": 0.05,
+        "draw_promote_threshold": 1.0,
+        "draw_promote_margin": 0.0,
+        "low_confidence_probability": 0.45,
+        "medium_confidence_probability": 0.55,
+        "low_confidence_margin": 0.06,
+        "medium_confidence_margin": 0.12,
+        "training_policy_accuracy": 0.5807931340633323,
+        "training_policy_draw_rate_gap": 0.2134260629377528
+      },
+      "train_log_loss": 0.8975452720562651,
+      "train_raw_top_accuracy": 0.5807438098056624
+    },
+    "hist_multiclass": {
+      "model_architecture": "hist_multiclass",
+      "status": "trained",
+      "test_accuracy": 0.6026829749457486,
+      "test_log_loss": 0.8744219104443703,
+      "test_actual_draw_rate": 0.22864470309725785,
+      "test_predicted_draw_rate": 0.0674689287827974,
+      "test_raw_top_draw_rate": 0.006312882225290984,
+      "test_raw_top_accuracy": 0.6044584730716117,
+      "decision_policy": {
+        "draw_min_probability": 0.22,
+        "draw_margin_over_team": 0.0,
+        "draw_promote_threshold": 0.26,
+        "draw_promote_margin": 0.08,
+        "low_confidence_probability": 0.45,
+        "medium_confidence_probability": 0.55,
+        "low_confidence_margin": 0.06,
+        "medium_confidence_margin": 0.12,
+        "training_policy_accuracy": 0.629081582322186,
+        "training_policy_draw_rate_gap": 0.17105652559928974
+      },
+      "train_log_loss": 0.8452640880279733,
+      "train_raw_top_accuracy": 0.611423498076354
+    },
+    "xgboost_multiclass": {
+      "model_architecture": "xgboost_multiclass",
+      "status": "trained",
+      "test_accuracy": 0.6001183665417242,
+      "test_log_loss": 0.8652580088798207,
+      "test_actual_draw_rate": 0.22864470309725785,
+      "test_predicted_draw_rate": 0.07851647267705662,
+      "test_raw_top_draw_rate": 0.017163148550009864,
+      "test_raw_top_accuracy": 0.6052475833497731,
+      "decision_policy": {
+        "draw_min_probability": 0.22,
+        "draw_margin_over_team": 0.0,
+        "draw_promote_threshold": 0.32,
+        "draw_promote_margin": 0.08,
+        "low_confidence_probability": 0.45,
+        "medium_confidence_probability": 0.55,
+        "low_confidence_margin": 0.06,
+        "medium_confidence_margin": 0.12,
+        "training_policy_accuracy": 0.6003748643582915,
+        "training_policy_draw_rate_gap": 0.16183288941501428
+      },
+      "train_log_loss": 0.8660237662865375,
+      "train_raw_top_accuracy": 0.5945052776955707
+    },
+    "lightgbm_multiclass": {
+      "model_architecture": "lightgbm_multiclass",
+      "status": "trained",
+      "test_accuracy": 0.5880844347997632,
+      "test_log_loss": 0.8773784487814498,
+      "test_actual_draw_rate": 0.22864470309725785,
+      "test_predicted_draw_rate": 0.12250937068455317,
+      "test_raw_top_draw_rate": 0.05760505030578023,
+      "test_raw_top_accuracy": 0.6014993095285066,
+      "decision_policy": {
+        "draw_min_probability": 0.34176470588235297,
+        "draw_margin_over_team": 0.025,
+        "draw_promote_threshold": 0.32,
+        "draw_promote_margin": 0.08,
+        "low_confidence_probability": 0.45,
+        "medium_confidence_probability": 0.55,
+        "low_confidence_margin": 0.06,
+        "medium_confidence_margin": 0.12,
+        "training_policy_accuracy": 0.7197888921771727,
+        "training_policy_draw_rate_gap": 0.09899378514353357
+      },
+      "train_log_loss": 0.7234427570876382,
+      "train_raw_top_accuracy": 0.7034625628884286
+    },
+    "catboost_multiclass": {
+      "model_architecture": "catboost_multiclass",
+      "status": "failed",
+      "error": "catboost/libs/data/features_layout.cpp:124: All feature names should be different, but 'directness_edge' used more than once."
+    },
+    "two_stage_logistic_draw_hist_non_draw": {
+      "model_architecture": "two_stage_logistic_draw_hist_non_draw",
+      "status": "trained",
+      "test_accuracy": 0.41921483527322945,
+      "test_log_loss": 1.0393237621830331,
+      "test_actual_draw_rate": 0.22864470309725785,
+      "test_predicted_draw_rate": 0.6462813178141645,
+      "test_raw_top_draw_rate": 0.7036890905504044,
+      "test_raw_top_accuracy": 0.41388834089564014,
+      "decision_policy": {
+        "draw_min_probability": 0.45,
+        "draw_margin_over_team": 0.17500000000000002,
+        "draw_promote_threshold": 1.0,
+        "draw_promote_margin": 0.0,
+        "low_confidence_probability": 0.45,
+        "medium_confidence_probability": 0.55,
+        "low_confidence_margin": 0.06,
+        "medium_confidence_margin": 0.12,
+        "training_policy_accuracy": 0.44150143040347245,
+        "training_policy_draw_rate_gap": 0.41264673966656795
+      },
+      "train_log_loss": 1.015383223880454,
+      "train_raw_top_accuracy": 0.42384334615764035
+    },
+    "two_stage_logistic_draw_xgboost_non_draw": {
+      "model_architecture": "two_stage_logistic_draw_xgboost_non_draw",
+      "status": "trained",
+      "test_accuracy": 0.4196093904123101,
+      "test_log_loss": 1.0354608530556302,
+      "test_actual_draw_rate": 0.22864470309725785,
+      "test_predicted_draw_rate": 0.6445058196883015,
+      "test_raw_top_draw_rate": 0.7009272045768397,
+      "test_raw_top_accuracy": 0.4134937857565595,
+      "decision_policy": {
+        "draw_min_probability": 0.45,
+        "draw_margin_over_team": 0.17500000000000002,
+        "draw_promote_threshold": 1.0,
+        "draw_promote_margin": 0.0,
+        "low_confidence_probability": 0.45,
+        "medium_confidence_probability": 0.55,
+        "low_confidence_margin": 0.06,
+        "medium_confidence_margin": 0.12,
+        "training_policy_accuracy": 0.4391338660353162,
+        "training_policy_draw_rate_gap": 0.41131498470948014
+      },
+      "train_log_loss": 1.0349452549961746,
+      "train_raw_top_accuracy": 0.42172240307783365
+    },
+    "poisson_goal_outcome": {
+      "model_architecture": "poisson_goal_outcome",
+      "status": "trained",
+      "test_accuracy": 0.6068258039060959,
+      "test_log_loss": 0.8665312669419726,
+      "test_actual_draw_rate": 0.22864470309725785,
+      "test_predicted_draw_rate": 0.006904714933912014,
+      "test_raw_top_draw_rate": 0.0,
+      "test_raw_top_accuracy": 0.6062339711974748,
+      "decision_policy": {
+        "draw_min_probability": 0.22,
+        "draw_margin_over_team": 0.0,
+        "draw_promote_threshold": 0.3,
+        "draw_promote_margin": 0.08,
+        "low_confidence_probability": 0.45,
+        "medium_confidence_probability": 0.55,
+        "low_confidence_margin": 0.06,
+        "medium_confidence_margin": 0.12,
+        "training_policy_accuracy": 0.5828647528854691,
+        "training_policy_draw_rate_gap": 0.23064022886455557
+      },
+      "train_log_loss": 0.8911532640360941,
+      "train_raw_top_accuracy": 0.5824701588241097
+    },
+    "soft_voting_ensemble": {
+      "model_architecture": "soft_voting_ensemble",
+      "status": "trained",
+      "test_accuracy": 0.5955809824422963,
+      "test_log_loss": 0.8732080665740387,
+      "test_actual_draw_rate": 0.22864470309725785,
+      "test_predicted_draw_rate": 0.12231209311501283,
+      "test_raw_top_draw_rate": 0.07516275399487078,
+      "test_raw_top_accuracy": 0.6054448609193135,
+      "decision_policy": {
+        "draw_min_probability": 0.35529411764705887,
+        "draw_margin_over_team": 0.025,
+        "draw_promote_threshold": 0.32,
+        "draw_promote_margin": 0.04,
+        "low_confidence_probability": 0.45,
+        "medium_confidence_probability": 0.55,
+        "low_confidence_margin": 0.06,
+        "medium_confidence_margin": 0.12,
+        "training_policy_accuracy": 0.6313504981750024,
+        "training_policy_draw_rate_gap": 0.09756338167110584
+      },
+      "train_log_loss": 0.8414213690666528,
+      "train_raw_top_accuracy": 0.6289829338068462
+    },
+    "stacked_probability_ensemble": {
+      "model_architecture": "stacked_probability_ensemble",
+      "status": "trained",
+      "test_accuracy": 0.5352140461629513,
+      "test_log_loss": 1.2597314099715653,
+      "test_actual_draw_rate": 0.22864470309725785,
+      "test_predicted_draw_rate": 0.21739988163345828,
+      "test_raw_top_draw_rate": 0.20181495363977117,
+      "test_raw_top_accuracy": 0.5387650424146775,
+      "decision_policy": {
+        "draw_min_probability": 0.22,
+        "draw_margin_over_team": 0.0,
+        "draw_promote_threshold": 0.32,
+        "draw_promote_margin": 0.04,
+        "low_confidence_probability": 0.45,
+        "medium_confidence_probability": 0.55,
+        "low_confidence_margin": 0.06,
+        "medium_confidence_margin": 0.12,
+        "training_policy_accuracy": 0.8008779717865246,
+        "training_policy_draw_rate_gap": 0.019779027325638743
+      },
+      "train_log_loss": 0.48032372322063066,
+      "train_raw_top_accuracy": 0.7992995955410871
+    }
+  },
+  "goal_candidate_metrics": {
+    "hist_gradient_boosted_goals": {
+      "status": "trained",
+      "home_goal_mae": 1.0176402386403756,
+      "away_goal_mae": 0.8363910432006164,
+      "combined_goal_mae": 1.8540312818409919
+    },
+    "xgboost_goals": {
+      "status": "trained",
+      "home_goal_mae": 1.013595849432861,
+      "away_goal_mae": 0.834544155618088,
+      "combined_goal_mae": 1.8481400050509489
+    },
+    "lightgbm_goals": {
+      "status": "trained",
+      "home_goal_mae": 1.0215436400734974,
+      "away_goal_mae": 0.8352150911839884,
+      "combined_goal_mae": 1.8567587312574858
+    },
+    "catboost_goals": {
+      "status": "failed",
+      "error": "catboost/libs/data/features_layout.cpp:124: All feature names should be different, but 'directness_edge' used more than once."
+    }
+  },
+  "test_home_goal_mae": 1.013595849432861,
+  "test_away_goal_mae": 0.834544155618088
+}
