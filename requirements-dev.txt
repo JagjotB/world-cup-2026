@@ -1,0 +1,10 @@
+# Full development environment: model training, alternative learners, and
+# data ingestion. Installs the runtime set plus the heavy extras.
+-r requirements.txt
+xgboost>=2.0
+lightgbm>=4.0
+catboost>=1.2
+pdfplumber>=0.11
+soccerdata>=1.9
+kagglehub>=0.3
+pytest>=8.0
