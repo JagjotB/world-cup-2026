@@ -116,7 +116,8 @@ def sync_results_log() -> list[str]:
     if not new_rows:
         return []
 
-    combined = pd.concat([existing, pd.DataFrame(new_rows)], ignore_index=True) if not existing.empty else pd.DataFrame(new_rows)
+    new_frame = pd.DataFrame(new_rows)
+    combined = pd.concat([existing, new_frame], ignore_index=True) if not existing.empty else new_frame
     combined = combined[RESULTS_COLUMNS]
     combined.to_csv(RESULTS_2026_FILE, index=False)
     return added
@@ -131,10 +132,7 @@ def commit_and_push(added: list[str]) -> None:
     if not status.stdout.strip():
         return
     summary = added[0] if len(added) == 1 else f"{len(added)} new match results"
-    message = (
-        f"Auto-record {summary}\n\n"
-        "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
-    )
+    message = f"Auto-record {summary}"
     subprocess.run(["git", "commit", "-m", message], cwd=str(PROJECT_ROOT), check=True)
     subprocess.run(["git", "push", "origin", "main"], cwd=str(PROJECT_ROOT), check=True)
     log("Committed and pushed results log.")
